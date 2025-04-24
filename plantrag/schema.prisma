@@ -1,0 +1,41 @@
+// schema.prisma - Target State
+
+generator client {
+  provider        = "prisma-client-js"
+previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector(schema: "public")]
+}
+
+  model User {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  plants PlantInfo[] // Relation back
+}
+
+  model PlantInfo {
+  id             Int      @id @default(autoincrement())
+  name           String
+  scientificName String?
+  description    String   @db.Text
+  careInfo       String?  @db.Text
+  soilNeeds      String?  @db.Text
+  source         String
+  embedding      Unsupported("vector(1024)")? 
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // --- Foreign Key and Relation to User ---
+  userId         Int      // Foreign key field
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade) // Relation field
+
+  @@unique([name, scientificName])
+  // --- Indexes (Type added via SQL migration) ---
+  @@index([embedding], map: "plantinfo_embedding_idx")
+  @@index([userId])
+  }

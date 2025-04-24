@@ -1,0 +1,97 @@
+// main.wasp (Corrected)
+
+app botanicalAssistant {
+  wasp: {
+    version: "^0.16.3" // Use the latest compatible patch version
+  },
+  title: "Botanical Assistant",
+  head: [ "<meta name=\"description\" content=\"A botanical information assistant using RAG\" />" ],
+
+  // Assuming src/client/pages/Root.jsx uses 'export default'
+  client: {
+    rootComponent: import Layout from "@src/client/layouts/layout.jsx",
+  },
+
+  auth: {
+    userEntity: User,
+    methods: {
+      usernameAndPassword: {}
+    },
+    onAuthFailedRedirectTo: "/login",
+    onAuthSucceededRedirectTo: "/"
+  },
+  db: {
+    // seeds: [] // Optional: Add seeds if needed later
+  }
+}
+
+// --- Default User Entity ---
+// If you haven't explicitly defined User, Wasp uses a default.
+// It's often better to define it explicitly in schema.prisma if you customize it.
+// Assuming User entity is defined in schema.prisma as shown before.
+
+// --- Routes and Pages ---
+route RootRoute { path: "/", to: MainPage }
+page MainPage {
+  authRequired: true, // Correct - requires login
+  component: import { MainPage } from "@src/client/pages/MainPage" // Use .jsx or .tsx
+}
+
+route LoginRoute { path: "/login", to: LoginPage }
+page LoginPage {
+  component: import { LoginPage } from "@src/client/pages/auth/LoginPage" // Use .jsx or .tsx
+}
+
+route SignupRoute { path: "/signup", to: SignupPage }
+page SignupPage {
+  component: import { SignupPage } from "@src/client/pages/auth/SignupPage" // Use .jsx or .tsx
+}
+
+// --- Queries ---
+query getPlantInfo {
+  fn: import { getPlantInfo } from "@src/queries.js",
+  auth: true, 
+    entities: [PlantInfo]
+}
+
+query findSimilarPlants {
+  fn: import { findSimilarPlants } from "@src/queries.js", // Corrected path in previous steps
+  auth: true, 
+  entities: [PlantInfo],
+}
+
+// --- Actions ---
+action searchBotanicalInfo {
+  fn: import { searchBotanicalInfo } from "@src/actions.js",
+  auth: true, 
+}
+
+action fetchFromTrefleApi {
+  fn: import { fetchFromTrefleApi } from "@src/actions.js",
+  auth: true,
+  entities: [] // Explicitly empty or omit if no direct DB access needed via context.entities
+}
+
+action generateEmbedding {
+  fn: import { generateEmbedding } from "@src/actions.js",
+  auth: true, 
+ }
+
+action storePlantData {
+  fn: import { storePlantData } from "@src/actions.js",
+  auth: true, 
+  entities: [PlantInfo] 
+}
+
+// --- Jobs ---
+job syncTrefleData {
+  executor: PgBoss, // Ensure @wasp/jobs is installed if not default
+  perform: {
+    // Assumes src/syncTrefleData.js exists and exports syncTrefleData
+    fn: import { syncTrefleData } from "@src/syncTrefleData.js"
+  },
+  schedule: {
+    cron: "0 0 * * *" // Daily at midnight
+  },
+  entities: [PlantInfo] // Correct: Job likely interacts with PlantInfo
+}
