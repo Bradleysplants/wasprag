@@ -12,10 +12,13 @@ datasource db {
 }
 
   model User {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  plants PlantInfo[] // Relation back
+  id                          Int      @id @default(autoincrement())
+  email                       String?   @unique // Store the user's email/identifier
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+  passwordResetToken          String?  @unique // Store hash of the token
+  passwordResetTokenSentAt    DateTime? // When the token was sent (for expiry)
+  passwordResetTokenExpiresAt DateTime?  // <<< ENSURE THIS EXISTS
 }
 
   model PlantInfo {

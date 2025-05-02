@@ -1,0 +1,4 @@
+{
+    "prisma.schema": "${workspaceFolder}/.wasp/out/server/db/schema.prisma"
+
+}

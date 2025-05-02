@@ -1,21 +1,20 @@
-// main.wasp (Corrected)
-
 app botanicalAssistant {
   wasp: {
     version: "^0.16.3" // Use the latest compatible patch version
   },
   title: "Botanical Assistant",
-  head: [ "<meta name=\"description\" content=\"A botanical information assistant using RAG\" />" ],
-
-  // Assuming src/client/pages/Root.jsx uses 'export default'
+  head: [
+    "<meta name=\"description\" content=\"A botanical information assistant using RAG\" />"
+  ],
   client: {
     rootComponent: import Layout from "@src/client/layouts/layout.jsx",
   },
-
   auth: {
     userEntity: User,
     methods: {
-      usernameAndPassword: {}
+      usernameAndPassword: {         
+        userSignupFields: import { userSignupFields } from "@src/server/utils/authUtils.js" 
+}
     },
     onAuthFailedRedirectTo: "/login",
     onAuthSucceededRedirectTo: "/"
@@ -31,56 +30,98 @@ app botanicalAssistant {
 // Assuming User entity is defined in schema.prisma as shown before.
 
 // --- Routes and Pages ---
-route RootRoute { path: "/", to: MainPage }
+route RootRoute { 
+  path: "/", 
+  to: MainPage 
+}
+
 page MainPage {
   authRequired: true, // Correct - requires login
   component: import { MainPage } from "@src/client/pages/MainPage" // Use .jsx or .tsx
 }
 
-route LoginRoute { path: "/login", to: LoginPage }
+route LoginRoute { 
+  path: "/login", 
+  to: LoginPage 
+}
+
 page LoginPage {
   component: import { LoginPage } from "@src/client/pages/auth/LoginPage" // Use .jsx or .tsx
 }
 
-route SignupRoute { path: "/signup", to: SignupPage }
+route SignupRoute { 
+  path: "/signup", 
+  to: SignupPage 
+}
+
 page SignupPage {
   component: import { SignupPage } from "@src/client/pages/auth/SignupPage" // Use .jsx or .tsx
 }
 
+route forgotPasswordRoute { 
+  path: "/forgot-password", to: ForgotPasswordPage
+}
+
+page ForgotPasswordPage {
+  component: import { ForgotPasswordPage } from "@src/client/pages/auth/ForgotPassword" // Use .jsx or .tsx
+}
+
+route PasswordResetRoute { 
+  path: "/reset-password", to: PasswordResetPage 
+  }
+
+page PasswordResetPage {
+    component: import { PasswordResetPage } from "@src/client/pages/auth/PasswordResetPage.jsx"
+}
+
+
 // --- Queries ---
 query getPlantInfo {
-  fn: import { getPlantInfo } from "@src/queries.js",
-  auth: true, 
-    entities: [PlantInfo]
+  fn: import { getPlantInfo } from "@src/server/queries/queries.js",
+  auth: true,
+  entities: [PlantInfo]
 }
 
 query findSimilarPlants {
-  fn: import { findSimilarPlants } from "@src/queries.js", // Corrected path in previous steps
-  auth: true, 
+  fn: import { findSimilarPlants } from "@src/server/queries/queries.js", // Corrected path in previous steps
+  auth: true,
   entities: [PlantInfo],
 }
 
 // --- Actions ---
-action searchBotanicalInfo {
-  fn: import { searchBotanicalInfo } from "@src/actions.js",
-  auth: true, 
+action sendWelcomeEmail {
+  fn: import { sendWelcomeEmail } from "@src/server/actions/emailActions.js",
+  entities: []
+}
+
+action requestPasswordReset {
+  fn: import { requestPasswordReset } from "@src/server/actions/emailActions.js",
+  entities: [User]
 }
 
 action fetchFromTrefleApi {
-  fn: import { fetchFromTrefleApi } from "@src/actions.js",
-  auth: true,
-  entities: [] // Explicitly empty or omit if no direct DB access needed via context.entities
+  fn: import { fetchFromTrefleApi } from "@src/server/actions/plantActions.js",
+  entities: [User] // Assuming auth check needed
+}
+
+action storePlantData {
+  fn: import { storePlantData } from "@src/server/actions/plantActions.js",
+  entities: [User, PlantInfo]
 }
 
 action generateEmbedding {
-  fn: import { generateEmbedding } from "@src/actions.js",
-  auth: true, 
- }
+  fn: import { generateEmbedding } from "@src/server/actions/aiActions.js",
+  entities: [User]
+}
 
-action storePlantData {
-  fn: import { storePlantData } from "@src/actions.js",
-  auth: true, 
-  entities: [PlantInfo] 
+action searchBotanicalInfo {
+  fn: import { searchBotanicalInfo } from "@src/server/actions/aiActions.js",
+  entities: [User]
+}
+
+action resetPassword {
+  fn: import { resetPassword } from "@src/server/actions/authActions.js",
+  entities: [User]
 }
 
 // --- Jobs ---
@@ -88,7 +129,7 @@ job syncTrefleData {
   executor: PgBoss, // Ensure @wasp/jobs is installed if not default
   perform: {
     // Assumes src/syncTrefleData.js exists and exports syncTrefleData
-    fn: import { syncTrefleData } from "@src/syncTrefleData.js"
+    fn: import { syncTrefleData } from "@src/server/jobs/syncTrefleData.js"
   },
   schedule: {
     cron: "0 0 * * *" // Daily at midnight

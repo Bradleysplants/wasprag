@@ -54,7 +54,33 @@ module.exports = {
       boxShadow: {
         'subtle': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)', // Softer shadow
         'lifted': '0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05)', // A bit more pronounced
-    }
+        keyframes: {
+          // Define keyframes for a fade-in and slide-up effect
+          'fade-slide-in': {
+            'from': {
+              opacity: '0',
+              // Start slightly lower (adjust Y value as needed)
+              transform: 'translateY(10px)'
+            },
+            'to': {
+              opacity: '1',
+              transform: 'translateY(0)'
+            }
+          },
+          'fade-slide-in-content': {
+            '0%': { opacity: '0', transform: 'translateY(5px)' }, // Start invisible and slightly down
+            '30%': { opacity: '0', transform: 'translateY(5px)' }, // *Stay invisible for a bit to create delay*
+            '100%': { opacity: '1', transform: 'translateY(0)' } // Fade and slide in
+          }
+        },
+        animation: {
+          // Create a utility class 'animate-fade-slide-in'
+          // Format: 'name duration timing-function fill-mode'
+          'fade-slide-in': 'fade-slide-in 0.3s ease-out forwards',
+          'fade-slide-in-content': 'fade-slide-in-content 0.4s ease-out forwards',  
+        }
+  
+      }
        // Add custom animations (leaf rustling? 😉) or other tweaks here!
     },
   }
