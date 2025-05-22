@@ -1,8 +1,8 @@
-# NOTE: Why do we specify alpine version here?
+# NOTE: Why do we specify slim version here?
 #   Because if not, we had situations where it would use the different version
 #   locally and on Github CI. This way we ensure exact version is used,
 #   and also have control over updating it (instead of update surprising us).
-FROM node:20.0.0-alpine3.17 AS node
+FROM node:20.11-slim AS node
 
 
 # We split Dockerfile into base, server-builder and server-production.
@@ -32,8 +32,8 @@ WORKDIR /app
 COPY src ./src
 COPY package.json .
 COPY package-lock.json .
-COPY server .wasp/build/server
-COPY sdk .wasp/out/sdk
+COPY ./.wasp/build/server ./server_build_files
+COPY ./.wasp/out/sdk ./sdk_build_files
 # Install npm packages, resulting in node_modules/.
 RUN npm install && cd .wasp/build/server && npm install
 COPY db/schema.prisma .wasp/build/db/

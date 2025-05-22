@@ -6,7 +6,7 @@ import { getUserDisplayNameFromUser } from '../utils/authUtils';
 import '../../Main.css';
 import { NavBar } from '../components/navBar';
 import { Footer } from '../components/footer';
-import '../../../src/client/pages/Root';
+import '../pages/Root';
 
 export const Layout = () => {
   const { data: user, isLoading } = useAuth();
