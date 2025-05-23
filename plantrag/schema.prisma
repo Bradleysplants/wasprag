@@ -19,6 +19,9 @@ datasource db {
   passwordResetToken          String?  @unique // Store hash of the token
   passwordResetTokenSentAt    DateTime? // When the token was sent (for expiry)
   passwordResetTokenExpiresAt DateTime?  // <<< ENSURE THIS EXISTS
+  firstName                   String?
+  lastName                    String?
+  theme                       String?  @default("light") // Default theme
 }
 
   model PlantInfo {
