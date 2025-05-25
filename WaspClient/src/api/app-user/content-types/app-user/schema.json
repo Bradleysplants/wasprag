@@ -1,0 +1,39 @@
+{
+  "kind": "collectionType",
+  "collectionName": "app_users",
+  "info": {
+    "singularName": "app-user",
+    "pluralName": "app-users",
+    "displayName": "AppUser"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "waspUserId": {
+      "type": "integer",
+      "required": true,
+      "unique": true
+    },
+    "email": {
+      "type": "email",
+      "required": true,
+      "unique": true
+    },
+    "firstName": {
+      "type": "string",
+      "default": "firstName"
+    },
+    "lastName": {
+      "type": "string"
+    },
+    "theme": {
+      "type": "enumeration",
+      "enum": [
+        "Light",
+        "Dark"
+      ],
+      "required": false
+    }
+  }
+}

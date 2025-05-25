@@ -22,6 +22,11 @@ datasource db {
   firstName                   String?
   lastName                    String?
   theme                       String?  @default("light") // Default theme
+  paypalSubscriptionId      String?    @unique
+  paypalPlanId              String?
+  paypalSubscriptionStatus  String?
+  paypalSubscriptionEndDate DateTime?
+
 }
 
   model PlantInfo {
