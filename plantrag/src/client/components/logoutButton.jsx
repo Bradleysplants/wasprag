@@ -1,17 +1,12 @@
-// src/client/components/LogoutButton.jsx
-import React from 'react';
+// src/client/components/LogoutButton.jsx (Fallback - No Router Hooks)
+import React, { useState } from 'react';
 import { logout } from 'wasp/client/auth'; // Import Wasp's logout function
 import PropTypes from 'prop-types';
-
-// Optional: Add PropTypes for JS projects
-// import PropTypes from 'prop-types';
 
 // Base styles - can be overridden or extended via className prop
 const BASE_CLASSES = "font-medium text-sm transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1";
 // Default visual styles (can be overridden)
 const DEFAULT_VISUAL_CLASSES = "px-4 py-2 bg-white border border-plant-primary text-plant-primary-dark rounded-lg hover:bg-plant-subtle focus:ring-plant-primary";
-// Dropdown specific styles (example of what might be passed)
-// const DROPDOWN_CLASSES = "w-full text-left block px-4 py-2 text-neutral-medium hover:bg-plant-subtle/60 hover:text-plant-primary-dark rounded-none border-none shadow-none";
 
 export const LogoutButton = ({
   onLoggedOut, // Optional callback after successful logout
@@ -19,21 +14,30 @@ export const LogoutButton = ({
   children = 'Logout', // Default button text
   ...props // Pass any other button props like aria-label, etc.
 }) => {
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleLogout = async () => {
     try {
+      setIsLoggingOut(true);
       await logout(); // Call Wasp's logout function
       console.log('Logout successful');
+      
       // Call the optional callback if provided
       if (onLoggedOut && typeof onLoggedOut === 'function') {
         onLoggedOut();
       }
-      // Note: Wasp's default behavior usually handles redirection after logout
-      // based on main.wasp config or internal logic.
-      // You generally don't need to navigate manually here.
+      
+      // Set flag for success message on login page
+      localStorage.setItem('logoutSuccess', 'true');
+      
+      // Immediate redirect - no delay
+      window.location.href = '/login';
+      
     } catch (err) {
       console.error('Error logging out:', err);
-      // Optionally display an error to the user using a toast/notification
+      setIsLoggingOut(false);
+      // Fallback: redirect even if logout failed
+      window.location.href = '/login';
     }
   };
 
@@ -45,20 +49,25 @@ export const LogoutButton = ({
     <button
       type="button"
       onClick={handleLogout}
+      disabled={isLoggingOut}
       className={combinedClassName}
       {...props} // Spread remaining props onto the button
     >
-      {children} {/* Render button text or custom content */}
+      {isLoggingOut ? (
+        <>
+          <div className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+          Logging out...
+        </>
+      ) : (
+        children // Render button text or custom content
+      )}
     </button>
   );
 };
 
 // Optional: PropTypes definition
- LogoutButton.propTypes = {
-   onLoggedOut: PropTypes.func,
-   className: PropTypes.string,
-   children: PropTypes.node,
- };
-
-// Optional: Default export if preferred
-// export default LogoutButton;
+LogoutButton.propTypes = {
+  onLoggedOut: PropTypes.func,
+  className: PropTypes.string,
+  children: PropTypes.node,
+};

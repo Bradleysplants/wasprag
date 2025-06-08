@@ -4,11 +4,11 @@ export default function Root() {
   return (
     <div>
       <header>
-        <h1>Botanical Buddy</h1>
+        <h1>Botani-Buddy</h1>
       </header>
       <Outlet />
       <footer>
-        <p>Botanical Buddy</p>
+        <p>Botani-Buddy</p>
       </footer>
     </div>
   )

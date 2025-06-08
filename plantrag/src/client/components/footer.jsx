@@ -26,7 +26,7 @@ export const Footer = () => {
           {/* Left Side: Copyright & Disclaimer */}
           {/* Uses theme text color, small size */}
           <p className="text-neutral-medium text-xs">
-            © {currentYear} Botanical Assistant. AI advice requires verification. 💚
+            © {currentYear} Botani-Buddy. AI advice requires verification. 💚
           </p>
 
           {/* Right Side: Optional Links Section */}

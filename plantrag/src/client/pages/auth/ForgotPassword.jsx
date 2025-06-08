@@ -1,10 +1,8 @@
 // src/client/pages/auth/ForgotPassword.jsx
 
 import React, { useState } from 'react';
-// Import Wasp hooks and components
 import { useAction } from 'wasp/client/operations';
 import { Link } from 'wasp/client/router';
-// Import the action hook for requesting the reset email
 import { requestPasswordReset } from 'wasp/client/operations';
 
 export function ForgotPasswordPage() {
@@ -26,9 +24,9 @@ export function ForgotPasswordPage() {
 
     // Basic frontend validation
     if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
-        setError('Please enter a valid email address.');
-        setIsLoading(false);
-        return;
+      setError('Please enter a valid email address.');
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -40,8 +38,6 @@ export function ForgotPasswordPage() {
       setEmail(''); // Clear input field
 
     } catch (err) {
-      // Handle errors thrown by the action (e.g., server config issues)
-      // Or network errors during the request.
       console.error("Forgot Password Request Error:", err);
       setError(err?.message || 'An error occurred. Please try again later.');
     } finally {
@@ -49,24 +45,32 @@ export function ForgotPasswordPage() {
     }
   };
 
-  // --- JSX Structure (Matches styling of other auth pages) ---
   return (
-    <div className="flex flex-col flex-grow items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-gradient-to-br from-plant-subtle via-neutral-light to-white">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+    // FIXED: Use theme variables for background gradient
+    <div className="flex flex-col flex-grow items-center justify-center px-4 py-12 sm:px-6 lg:px-8 bg-gradient-to-br from-plant-subtle via-background-secondary to-background-primary min-h-screen">
+      
+      {/* FIXED: Card with proper theme support */}
+      <div className="w-full max-w-md p-8 space-y-6 bg-background-primary border border-border-primary rounded-xl shadow-lifted backdrop-blur-sm">
+        
         {/* Header */}
         <div className="text-center">
-           <span className="text-4xl mb-4 inline-block text-plant-primary" role="img" aria-label="Seedling emoji">🌱</span>
-          <h2 className="text-2xl font-bold text-neutral-dark font-display">Forgot Your Password?</h2>
-          <p className="mt-2 text-sm text-neutral-medium">
+          <span className="text-4xl mb-4 inline-block text-plant-primary" role="img" aria-label="Seedling emoji">🔑</span>
+          
+          {/* FIXED: Use theme text colors */}
+          <h2 className="text-2xl font-bold text-text-primary font-display">
+            Forgot Your Password?
+          </h2>
+          <p className="mt-2 text-sm text-text-secondary">
             Enter your email below, and if an account exists, we'll send instructions to reset your password.
           </p>
         </div>
 
-        {/* Form */}
+        {/* FIXED: Form with theme styling */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          
           {/* Email Input */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-neutral-dark mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-text-primary mb-1">
               Email Address
             </label>
             <input
@@ -78,50 +82,87 @@ export function ForgotPasswordPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
-              className="w-full px-4 py-2.5 border border-neutral-medium/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-sun focus:border-transparent text-neutral-dark placeholder-neutral-medium text-sm shadow-sm disabled:opacity-60 disabled:bg-neutral-light/50"
+              className="
+                w-full px-4 py-2.5 
+                bg-background-secondary 
+                border border-border-primary 
+                rounded-lg 
+                focus:outline-none focus:ring-2 focus:ring-plant-primary focus:border-plant-primary
+                text-text-primary 
+                placeholder-text-tertiary 
+                text-sm shadow-sm 
+                disabled:opacity-60 disabled:bg-background-tertiary
+                transition-colors duration-200
+              "
               placeholder="you@example.com"
             />
           </div>
 
-          {/* Error Message Display */}
+          {/* FIXED: Error Message with berry accent */}
           {error && (
-            <div className="p-3 text-sm text-red-700 bg-red-100 border border-red-300 rounded-lg" role="alert">
+            <div className="p-3 text-sm text-accent-berry bg-accent-berry/10 border border-accent-berry/20 rounded-lg" role="alert">
               {error}
             </div>
           )}
 
-          {/* Success Message Display */}
+          {/* FIXED: Success Message with plant theme */}
           {successMessage && (
-            <div className="p-3 text-sm text-plant-primary-dark bg-green-100 border border-plant-secondary rounded-lg" role="alert">
-              {successMessage}
+            <div className="p-3 text-sm text-plant-primary-dark bg-plant-primary/10 border border-plant-primary/20 rounded-lg" role="alert">
+              <div className="flex items-center gap-2">
+                <span className="text-plant-primary">✉️</span>
+                <span>{successMessage}</span>
+              </div>
             </div>
           )}
 
-          {/* Submit Button */}
+          {/* FIXED: Submit Button with plant theme */}
           <div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-plant-primary hover:bg-plant-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-plant-primary-dark transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="
+                w-full flex justify-center py-3 px-4 
+                border border-transparent rounded-lg shadow-sm 
+                text-sm font-medium 
+                text-text-inverse 
+                bg-plant-primary hover:bg-plant-primary-dark 
+                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-plant-primary 
+                transition-colors duration-200 
+                disabled:opacity-50 disabled:cursor-not-allowed
+                hover:shadow-subtle
+              "
             >
               {isLoading ? (
-                <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" role="status"></div>
+                <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin" role="status"></div>
               ) : (
-                'Send Reset Link'
+                <>
+                  <span className="mr-2">🔑</span>
+                  Send Reset Link
+                </>
               )}
             </button>
           </div>
         </form>
 
-        {/* Back to Login Link */}
+        {/* FIXED: Back to Login Link with theme colors */}
         <div className="text-center mt-6">
-          <p className="text-sm text-neutral-medium">
+          <p className="text-sm text-text-secondary">
             Remember your password?{' '}
-            <Link to="/login" className="font-medium text-plant-primary-dark hover:text-plant-primary hover:underline">
+            <Link 
+              to="/login" 
+              className="font-medium text-plant-primary hover:text-plant-primary-dark hover:underline transition-colors duration-200"
+            >
               Back to Login
             </Link>
           </p>
         </div>
+      </div>
+
+      {/* Optional: Add a subtle footer */}
+      <div className="mt-8 text-center">
+        <p className="text-xs text-text-tertiary">
+          🌱 We'll help you get back to your plants
+        </p>
       </div>
     </div>
   );

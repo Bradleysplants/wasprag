@@ -1,0 +1,16 @@
+version: "2"
+
+tunnels:
+  wasp-frontend:
+    proto: http
+    addr: 3000
+  
+  wasp-backend:
+    proto: http
+    addr: 3001
+
+web_addr: localhost:4040
+console_ui: true
+log_level: info
+authtoken: 2kZzVI586JKexyGOg7ZxnV7Icie_7uuzJQAFJH5k1YF4YX8rv
+api_key: 2kZzVI586JKexyGOg7ZxnV7Icie_7uuzJQAFJH5k1YF4YX8rv

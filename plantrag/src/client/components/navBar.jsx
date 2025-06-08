@@ -1,20 +1,27 @@
 // src/client/components/NavBar.jsx
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'wasp/client/router'; // Assuming Link comes from wasp/client/router
-import { LogoutButton } from './logoutButton'; // Assuming LogoutButton component exists in the same folder
-
-// Optional: Import icons if desired
-// import { ChevronDownIcon } from '@heroicons/react/20/solid'; // Example
+import { Link } from 'wasp/client/router';
+import { useAuth } from 'wasp/client/auth'; // Import Wasp's auth hook
+import { LogoutButton } from './logoutButton.jsx';
+import ThemeToggle from './themeToggle.jsx';
 
 // Define the NavBar component
 export const NavBar = ({ userDisplayName, onLogout }) => {
   // State for managing dropdown visibility
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  // Calculate user initial for avatar
-  const userInitial = userDisplayName ? userDisplayName[0].toUpperCase() : 'U';
   // Ref to detect clicks outside the dropdown
   const dropdownRef = useRef(null);
+  
+  // Use Wasp's auth hook to check if user is authenticated
+  const { data: user, isLoading } = useAuth();
+  
+  // Check if user is logged in using Wasp's auth
+  const isLoggedIn = Boolean(user && !isLoading);
+  
+  // Calculate user initial for avatar - use actual user data if available
+  const displayName = user?.email || userDisplayName || 'User';
+  const userInitial = displayName ? displayName[0].toUpperCase() : 'U';
 
   // Function to toggle dropdown visibility
   const toggleDropdown = (event) => {
@@ -38,7 +45,7 @@ export const NavBar = ({ userDisplayName, onLogout }) => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isDropdownOpen]); // Dependency array ensures effect runs when isDropdownOpen changes
+  }, [isDropdownOpen]);
 
   // Handler for after logout action
   const handleLoggedOut = () => {
@@ -49,101 +56,141 @@ export const NavBar = ({ userDisplayName, onLogout }) => {
     }
   };
 
+  // Show loading state if auth is still loading
+  if (isLoading) {
+    return (
+      <nav className="sticky top-0 z-20 bg-white dark:bg-gray-800 shadow-subtle transition-colors duration-300">
+        <div className="container mx-auto px-4 sm:px-6 py-3">
+          <div className="flex justify-between items-center">
+            <Link to="/" className="flex items-center space-x-2 group text-decoration-none">
+              <span className="text-2xl transition-transform duration-200 ease-in-out group-hover:rotate-12" role="img" aria-label="Leaf emoji">🌿</span>
+              <h1 className="text-lg sm:text-xl font-semibold text-plant-primary-dark dark:text-white font-display">Botani-Buddy</h1>
+            </Link>
+            <div className="text-sm text-neutral-medium">Loading...</div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
   // Main component rendering
   return (
-    // Sticky navigation bar with theme styles
-    <nav className="sticky top-0 z-20 bg-white shadow-subtle">
-      {/* Container for padding and max-width */}
+    <nav className="sticky top-0 z-20 bg-white dark:bg-gray-800 shadow-subtle transition-colors duration-300">
       <div className="container mx-auto px-4 sm:px-6 py-3">
-        {/* Flex container to space out branding and user menu */}
         <div className="flex justify-between items-center">
 
           {/* Branding Section (Logo + Title) */}
           <Link
-            to="/" // Link to the homepage
+            to="/"
             className="flex items-center space-x-2 group text-decoration-none"
-            onClick={() => setIsDropdownOpen(false)} // Close dropdown when clicking brand
+            onClick={() => setIsDropdownOpen(false)}
           >
-            {/* Leaf Emoji with hover effect */}
             <span className="text-2xl transition-transform duration-200 ease-in-out group-hover:rotate-12" role="img" aria-label="Leaf emoji">🌿</span>
-            {/* App Title with theme styles */}
-            <h1 className="text-lg sm:text-xl font-semibold text-plant-primary-dark font-display">Botanical Assistant</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-plant-primary-dark dark:text-white font-display">Botani-Buddy</h1>
           </Link>
 
-          {/* User Menu Section (Right Side) */}
-          {/* Relative container for positioning the absolute dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            {/* Avatar Button Trigger */}
-            <button
-              type="button"
-              onClick={toggleDropdown}
-              // Styling for the button: flex layout, rounded, focus ring, group for hover effects
-              className="flex items-center space-x-2 rounded-full p-1 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary group"
-              aria-haspopup="true"
-              aria-expanded={isDropdownOpen}
-              id="user-menu-button"
-            >
-              {/* User Avatar with theme styles and hover/open indicator */}
-              <div className={`w-8 h-8 rounded-full bg-earth-brown flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-sm transition-all ${isDropdownOpen ? 'ring-2 ring-plant-primary/50' : 'group-hover:ring-2 group-hover:ring-plant-primary/50'}`}>
-                {userInitial}
-              </div>
-              {/* User Display Name (hidden on small screens) with hover effect */}
-              <span className="hidden sm:inline text-neutral-medium text-sm group-hover:text-neutral-dark">
-                {userDisplayName}
-              </span>
-              {/* Optional: Dropdown Icon */}
-              {/* <ChevronDownIcon className={`hidden sm:inline h-4 w-4 text-neutral-medium transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} /> */}
-            </button>
-
-            {/* --- Dropdown Menu --- */}
-            <div
-              // Styling for the dropdown panel: positioning, appearance, transition
-              // ADDED HORIZONTAL PADDING (px-2) to this container
-              className={`
-                absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white py-2 px-2 /* <-- ADDED px-2 */
-                shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none
-                transition ease-out duration-100 transform
-                ${isDropdownOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}
-                z-30 /* Ensure dropdown is above other content */
-              `}
-              role="menu"
-              aria-orientation="vertical"
-              aria-labelledby="user-menu-button"
-              tabIndex="-1" // Allows focus management
-            >
-              {/* User Info Header within Dropdown */}
-              {/* Use container padding, remove specific px if needed */}
-              <div className="px-2 py-2 text-sm text-neutral-dark border-b border-neutral-light mb-1"> {/* Adjusted padding slightly */}
-                Signed in as <br/> {/* Line break for better display */}
-                <span className="font-medium break-words block">{userDisplayName}</span> {/* Allow long names to wrap */}
-              </div>
-
-              {/* --- LogoutButton uses w-full but within padded container --- */}
-              <LogoutButton
-                // Styling specific to the button within the dropdown context
-                // Kept w-full, adjusted padding slightly to px-3 py-1
-                className={`
-                  w-full text-left block px-3 py-1 text-sm font-medium rounded-md /* Kept w-full */
-                  bg-plant-primary text-white
-                  hover:bg-plant-primary-dark
-                  focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary-dark
-                  transition-colors duration-150
-                  border-none shadow-none /* Ensure no default borders/shadows interfere */
-                `}
-                onLoggedOut={handleLoggedOut} // Pass the logout handler
-                role="menuitem" // ARIA role
-                tabIndex="-1"
-                id="user-menu-item-1"
+          {/* Conditional User Menu or Login Links */}
+          {isLoggedIn ? (
+            /* User Menu Section - Only shown when logged in */
+            <div className="relative" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={toggleDropdown}
+                className="flex items-center space-x-2 rounded-full p-1 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary group"
+                aria-haspopup="true"
+                aria-expanded={isDropdownOpen}
+                id="user-menu-button"
               >
-                Logout
-              </LogoutButton>
-              {/* --- End LogoutButton --- */}
+                <div className={`w-8 h-8 rounded-full bg-earth-brown flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-sm transition-all ${isDropdownOpen ? 'ring-2 ring-plant-primary/50' : 'group-hover:ring-2 group-hover:ring-plant-primary/50'}`}>
+                  {userInitial}
+                </div>
+                <span className="hidden sm:inline text-neutral-medium dark:text-gray-300 text-sm group-hover:text-neutral-dark dark:group-hover:text-white transition-colors">
+                  {displayName}
+                </span>
+              </button>
 
-            </div> {/* End Dropdown Menu Div */}
-          </div> {/* End User Menu Relative Div */}
+              {/* Dropdown Menu */}
+              <div
+                className={`
+                  absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-gray-800 py-2 px-2 
+                  shadow-lg ring-1 ring-black dark:ring-gray-600 ring-opacity-5 focus:outline-none
+                  transition ease-out duration-100 transform
+                  ${isDropdownOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}
+                  z-30
+                `}
+                role="menu"
+                aria-orientation="vertical"
+                aria-labelledby="user-menu-button"
+                tabIndex="-1"
+              >
+                <div className="px-2 py-2 text-sm text-neutral-dark dark:text-gray-200 border-b border-neutral-light dark:border-gray-600 mb-1"> 
+                  Signed in as <br/>
+                  <span className="font-medium break-words block">{displayName}</span> 
+                </div>
 
-        </div> {/* End Main Flex Container */}
-      </div> {/* End Container Div */}
+                <Link
+                  to="/account-settings"
+                  role="menuitem"
+                  tabIndex="-1"
+                  id="user-menu-item-0"
+                  className="block w-full text-left px-3 py-2 text-sm text-neutral-medium dark:text-gray-300 hover:bg-neutral-light dark:hover:bg-gray-700 hover:text-neutral-dark dark:hover:text-white rounded-md transition-colors duration-150"
+                  onClick={() => setIsDropdownOpen(false)}
+                >
+                  Account Settings
+                </Link>
+
+                <div className="px-3 py-2 flex items-center justify-between text-sm text-neutral-medium dark:text-gray-300 hover:bg-neutral-light dark:hover:bg-gray-700 hover:text-neutral-dark dark:hover:text-white rounded-md transition-colors duration-150">
+                  <span>Theme</span>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <ThemeToggle 
+                      variant="switch" 
+                      size="sm"
+                      className="ml-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-neutral-light dark:border-gray-600 my-1"></div>
+
+                <LogoutButton
+                  className={`
+                    w-full text-left block px-3 py-1 text-sm font-medium rounded-md
+                    bg-plant-primary text-green-700
+                    hover:bg-plant-primary-dark
+                    focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary-dark
+                    transition-colors duration-150
+                    border-none shadow-none
+                  `}
+                  onLoggedOut={handleLoggedOut}
+                  role="menuitem"
+                  tabIndex="-1"
+                  id="user-menu-item-2"
+                >
+                  Logout
+                </LogoutButton>
+
+              </div>
+            </div>
+          ) : (
+            /* Login/Signup Links - Only shown when NOT logged in */
+            <div className="flex items-center space-x-4">
+              <Link
+                to="/login"
+                className="text-sm font-medium text-neutral-medium dark:text-gray-300 hover:text-plant-primary-dark dark:hover:text-white transition-colors duration-200"
+              >
+                Log In
+              </Link>
+              <Link
+                to="/signup"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-plant-primary hover:bg-plant-primary-dark rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary"
+              >
+                Sign Up
+              </Link>
+            </div>
+          )}
+
+        </div>
+      </div>
     </nav>
   );
 };

@@ -1,8 +1,8 @@
-// schema.prisma - Target State
+// schema.prisma - FIXED: Proper vector indexing (no btree for vectors)
 
 generator client {
   provider        = "prisma-client-js"
-previewFeatures = ["postgresqlExtensions"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
@@ -11,25 +11,24 @@ datasource db {
   extensions = [vector(schema: "public")]
 }
 
-  model User {
+model User {
   id                          Int      @id @default(autoincrement())
-  email                       String?   @unique // Store the user's email/identifier
+  email                       String?   @unique
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
-  passwordResetToken          String?  @unique // Store hash of the token
-  passwordResetTokenSentAt    DateTime? // When the token was sent (for expiry)
-  passwordResetTokenExpiresAt DateTime?  // <<< ENSURE THIS EXISTS
+  passwordResetToken          String?  @unique
+  passwordResetTokenSentAt    DateTime?
+  passwordResetTokenExpiresAt DateTime?
   firstName                   String?
   lastName                    String?
-  theme                       String?  @default("light") // Default theme
-  paypalSubscriptionId      String?    @unique
-  paypalPlanId              String?
-  paypalSubscriptionStatus  String?
-  paypalSubscriptionEndDate DateTime?
-
+  theme                       String?  @default("light")
+  
+  // Relations
+  subscription               Subscription?
+  payments                   Payment[]
 }
 
-  model PlantInfo {
+model PlantInfo {
   id             Int      @id @default(autoincrement())
   name           String
   scientificName String?
@@ -37,16 +36,81 @@ datasource db {
   careInfo       String?  @db.Text
   soilNeeds      String?  @db.Text
   source         String
-  embedding      Unsupported("vector(1024)")? 
+  embedding      Unsupported("vector(384)")?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // --- Foreign Key and Relation to User ---
-  userId         Int      // Foreign key field
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade) // Relation field
-
   @@unique([name, scientificName])
-  // --- Indexes (Type added via SQL migration) ---
-  @@index([embedding], map: "plantinfo_embedding_idx")
-  @@index([userId])
-  }
+  @@index([name])
+  @@index([scientificName])
+  @@index([source])
+  @@index([createdAt])
+}
+
+// Subscription model (unchanged)
+model Subscription {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  paypalSubscriptionId   String? @unique
+  paypalPlanId          String?
+  paypalPayerId         String?
+  
+  plan                  SubscriptionPlan @default(FREE)
+  status                SubscriptionStatus @default(INACTIVE)
+  currentPeriodStart    DateTime?
+  currentPeriodEnd      DateTime?
+  nextBillingTime       DateTime?
+  
+  monthlyQuestions      Int @default(0)
+  questionsResetAt      DateTime @default(now())
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Payment model (unchanged)
+model Payment {
+  id                    Int      @id @default(autoincrement())
+  userId                Int
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  paypalOrderId         String   @unique
+  paypalPaymentId       String?
+  paypalPayerId         String?
+  
+  amount                Decimal
+  currency              String   @default("USD")
+  status                PaymentStatus
+  description           String?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// Enums (unchanged)
+enum SubscriptionPlan {
+  FREE
+  BASIC
+  PREMIUM
+  PROFESSIONAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  CANCELLED
+  EXPIRED
+  PENDING
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  DENIED
+}

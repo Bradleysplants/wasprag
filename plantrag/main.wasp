@@ -2,12 +2,35 @@ app botanicalAssistant {
   wasp: {
     version: "^0.16.3" // Use the latest compatible patch version
   },
-  title: "Botanical Assistant",
+  title: "Botani-Buddy",
   head: [
-    "<meta name=\"description\" content=\"A botanical information assistant using RAG\" />"
+    "<link rel=\"icon\" type=\"image/x-icon\" href=\"/favicon.ico\">",
+    "<link rel=\"icon\" type=\"image/png\" sizes=\"16x16\" href=\"/favicon-16x16.png\">",
+    "<link rel=\"icon\" type=\"image/png\" sizes=\"32x32\" href=\"/favicon-32x32.png\">",
+    "<link rel=\"icon\" type=\"image/png\" sizes=\"48x48\" href=\"/favicon-48x48.png\">",
+    "<link rel=\"manifest\" href=\"/manifest.webmanifest\">",
+    "<meta name=\"mobile-web-app-capable\" content=\"yes\">",
+    "<meta name=\"theme-color\" content=\"#6CB851\">",
+    "<meta name=\"application-name\" content=\"Botani-Buddy\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"57x57\" href=\"/apple-touch-icon-57x57.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"60x60\" href=\"/apple-touch-icon-60x60.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"72x72\" href=\"/apple-touch-icon-72x72.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"76x76\" href=\"/apple-touch-icon-76x76.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"114x114\" href=\"/apple-touch-icon-114x114.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"120x120\" href=\"/apple-touch-icon-120x120.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"144x144\" href=\"/apple-touch-icon-144x144.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"152x152\" href=\"/apple-touch-icon-152x152.png\">",
+    "<link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/apple-touch-icon-180x180.png\">",
+    "<meta name=\"apple-mobile-web-app-capable\" content=\"yes\">",
+    "<meta name=\"apple-mobile-web-app-status-bar-style\" content=\"black-translucent\">",
+    "<meta name=\"apple-mobile-web-app-title\" content=\"Botani\">",
+    "<meta name=\"msapplication-TileColor\" content=\"#ffffff\">",
+    "<meta name=\"msapplication-TileImage\" content=\"/mstile-144x144.png\">",
+    "<meta name=\"msapplication-config\" content=\"/browserconfig.xml\">"
   ],
   client: {
     rootComponent: import Layout from "@src/client/layouts/layout.jsx",
+    setupFn: import { clientSetup } from "@src/client/clientSetup", 
   },
   auth: {
     userEntity: User,
@@ -18,6 +41,9 @@ app botanicalAssistant {
     },
     onAuthFailedRedirectTo: "/login",
     onAuthSucceededRedirectTo: "/"
+  },
+  server: {
+    middlewareConfigFn: import { serverMiddlewareFn } from "@src/middlewareConfig" 
   },
   db: {
     // seeds: [] // Optional: Add seeds if needed later
@@ -59,19 +85,60 @@ page SignupPage {
 }
 
 route forgotPasswordRoute { 
-  path: "/forgot-password", to: ForgotPasswordPage
+  path: "/forgot-password", 
+  to: ForgotPasswordPage
 }
 
 page ForgotPasswordPage {
   component: import { ForgotPasswordPage } from "@src/client/pages/auth/ForgotPassword" // Use .jsx or .tsx
 }
 
-route PasswordResetRoute { 
-  path: "/reset-password", to: PasswordResetPage 
+route PasswordResetroute { 
+  path: "/reset-password", 
+  to:  PasswordResetPage
   }
 
 page PasswordResetPage {
     component: import { PasswordResetPage } from "@src/client/pages/auth/PasswordResetPage.jsx"
+}
+
+route AccountSettingsRoute { 
+  path: "/account-settings", 
+  to: AccountSettingsPage 
+}
+
+page AccountSettingsPage {
+  component:  import AccountSettingsPage from "@src/client/pages/AccountSettingsPage.jsx",
+  authRequired: true
+}
+
+route PricingRoute { 
+  path: "/pricing-page", 
+  to: PricingPage 
+}
+
+page PricingPage {
+  component: import { PricingPage } from "@src/client/pages/subscription/PricingPage.jsx",
+  }
+
+route SubscriptionSuccessRoute { 
+  path: "/subscription/success", 
+  to: SubscriptionSuccessPage 
+}
+
+page SubscriptionSuccessPage {
+  component: import { SubscriptionSuccessPage } from "@src/client/pages/subscription/SubscriptionSuccessPage.jsx",
+  authRequired: true
+}
+
+route SubscriptionManageRoute { 
+  path: "/subscription/manage", 
+  to: SubscriptionManagePage 
+}
+
+page SubscriptionManagePage {
+  component: import { SubscriptionManagePage } from "@src/client/pages/subscription/SubscriptionManagePage.jsx",
+  authRequired: true
 }
 
 
@@ -83,12 +150,55 @@ query getPlantInfo {
 }
 
 query findSimilarPlants {
-  fn: import { findSimilarPlants } from "@src/server/queries/queries.js", // Corrected path in previous steps
+  fn: import { findSimilarPlants } from "@src/server/queries/queries.js",
   auth: true,
   entities: [PlantInfo],
 }
 
+query getCurrentUser {
+  fn: import { getCurrentUser } from "@src/server/queries/queries.js",
+  entities: [User],
+  auth: true
+}
+
+// ✅ FIXED: Changed from paypalActions.js to subscriptionActions.js
+query getUserSubscription {
+  fn: import { getUserSubscription } from "@src/server/actions/subscriptionActions.js",
+  entities: [User, Subscription],
+  auth: true
+}
+
+// ✅ FIXED: Changed from paypalActions.js to subscriptionActions.js
+query getSubscriptionPlans {
+  fn: import { getSubscriptionPlans } from "@src/server/actions/subscriptionActions.js",
+  entities: [Subscription],
+  auth: true
+}
+
 // --- Actions ---
+action createPlans {
+  fn: import { createSandboxPlans } from "@src/server/actions/paypalActions.js",
+}
+
+action resetQuestionCount {
+  fn: import { resetQuestionCount } from "@src/server/actions/subscriptionActions.js",
+  entities: [Subscription],
+  auth: true
+}
+
+// ✅ FIXED: Renamed from incrementQuestionCountInitial to incrementQuestionCount
+action incrementQuestionCount {
+  fn: import { incrementQuestionCount } from "@src/server/actions/subscriptionActions.js",
+  entities: [User, Subscription],
+  auth: true
+}
+
+action checkQuestionLimit {
+  fn: import { checkQuestionLimit } from "@src/server/actions/subscriptionActions.js",
+  entities: [User, Subscription],
+  auth: true
+}
+
 action sendWelcomeEmail {
   fn: import { sendWelcomeEmail } from "@src/server/actions/emailActions.js",
   entities: []
@@ -101,7 +211,7 @@ action requestPasswordReset {
 
 action fetchFromTrefleApi {
   fn: import { fetchFromTrefleApi } from "@src/server/actions/plantActions.js",
-  entities: [User] // Assuming auth check needed
+  entities: [User]
 }
 
 action storePlantData {
@@ -124,15 +234,68 @@ action resetPassword {
   entities: [User]
 }
 
+action updateUserTheme {
+  fn: import { updateUserTheme } from "@src/server/actions/userActions.js",
+  entities: [User],
+  auth: true
+}
+
+action updateUserProfile {
+  fn: import { updateUserProfile } from "@src/server/actions/userActions.js",
+  entities: [User],
+  auth: true
+}
+
+action syncUserToStrapi {
+  fn: import { syncUserToStrapi } from "@src/server/actions/strapiActions.js",
+  entities: [User], 
+  auth: true
+}
+
+action createPayPalSubscription {
+  fn: import { createPayPalSubscription } from "@src/server/actions/paypalActions.js",
+  entities: [Subscription],
+  auth: true
+}
+
+action activatePayPalSubscription {
+  fn: import { activatePayPalSubscription } from "@src/server/actions/paypalActions.js",
+  entities: [User, Subscription],
+  auth: true
+}
+
+action cancelPayPalSubscription {
+  fn: import { cancelPayPalSubscription } from "@src/server/actions/paypalActions.js",
+  entities: [User, Subscription],
+  auth: true
+}
+
+action createFreeSubscription {
+  fn: import { createFreeSubscription } from "@src/server/actions/subscriptionActions.js",
+  entities: [User, Subscription],
+  auth: true
+}
+
+action testPayPalConfiguration {
+  fn: import { testPayPalConfiguration } from "@src/server/actions/paypalActions.js",
+}
+
+action enhancedChat {
+  fn: import { enhancedChat } from "@src/server/actions/aiActions.js"
+}
+
+action healthCheck {
+  fn: import { healthCheck } from "@src/server/actions/aiActions.js"
+}
+
 // --- Jobs ---
-job syncTrefleData {
+job syncUserToStrapi {
   executor: PgBoss, // Ensure @wasp/jobs is installed if not default
   perform: {
-    // Assumes src/syncTrefleData.js exists and exports syncTrefleData
-    fn: import { syncTrefleData } from "@src/server/jobs/syncTrefleData.js"
+    fn: import { syncUserToStrapi } from "@src/server/actions/strapiActions.js"
   },
   schedule: {
-    cron: "0 0 * * *" // Daily at midnight
+    cron: "0 * * * *" // Every hour
   },
-  entities: [PlantInfo] // Correct: Job likely interacts with PlantInfo
+  entities: [User] // Correct: Job likely interacts with User
 }

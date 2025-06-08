@@ -1,150 +1,392 @@
-// vectorDatabase.js (ESM Version)
-// Path: ./src/db/vectorDatabase.js (adjust path if needed)
+// src/server/utils/vectorDatabase.js
+// Fixed vector database utilities for PlantInfo model
 
-// Use import syntax
-import { PrismaClient, Prisma } from '@prisma/client';
-
-// Instantiate PrismaClient directly
-const prisma = new PrismaClient();
-
-// JSDoc types remain the same
-/**
- * Describes the structure for plant information used internally...
- * @typedef {Object} PlantContextItem ...
- */
-/**
- * Represents a PlantInfo record from the database augmented with a similarity score...
- * @typedef {import('@prisma/client').PlantInfo & { similarity: number }} PlantQueryResult ...
- */
+import { prisma } from 'wasp/server';
 
 /**
- * Checks if the pgvector extension is enabled...
- * @returns {Promise<{ success: boolean; message: string }>} ...
+ * Query the vector database for similar plant embeddings
+ * @param {number[]} queryEmbedding - The query embedding vector
+ * @param {number} limit - Maximum number of results to return  
+ * @param {number} threshold - Similarity threshold (0-1, higher is more similar)
+ * @returns {Promise<Array>} Array of similar plant records
  */
-// Add export keyword
-export const setupPgVectorDatabase = async () => {
+export async function queryVectorDatabase(queryEmbedding, limit = 5, threshold = 0.7) {
   try {
-    const extensionExistsResult = await prisma.$queryRaw`
-      SELECT EXISTS (
-        SELECT 1 FROM pg_extension WHERE extname = 'vector'
-      ) as exists;
-    `;
-    const extensionExists = extensionExistsResult?.[0]?.exists;
-
-    if (!extensionExists) {
-      console.log("pgvector extension 'vector' not found. Ensure migrations include 'CREATE EXTENSION IF NOT EXISTS vector;'.");
-    } else {
-      console.log("pgvector extension 'vector' confirmed.");
+    // Validate all parameters
+    if (!queryEmbedding) {
+      throw new Error('queryEmbedding parameter is required');
     }
-    return { success: true, message: 'Vector database extension check complete.' };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Error checking vector database extension:', errorMessage);
-    return { success: false, message: `Error checking vector database: ${errorMessage}` };
-  }
-};
-
-/**
- * Queries the database for plants with embeddings similar...
- * @param {number[]} embedding - ...
- * @param {number} [limit=5] - ...
- * @param {number} [threshold=0.7] - ...
- * @returns {Promise<PlantQueryResult[]>} ...
- */
-// Add export keyword
-export const queryVectorDatabase = async (
-  embedding,
-  limit = 5,
-  threshold = 0.7
-) => {
-  if (!Array.isArray(embedding) || embedding.length === 0) {
-    console.error("QueryVectorDatabase error: Invalid or empty embedding provided.");
-    return [];
-  }
-  if (threshold < 0 || threshold > 1) {
-      console.warn(`QueryVectorDatabase warning: Similarity threshold ${threshold} is outside the typical [0, 1] range for cosine similarity.`);
-  }
-  try {
-    const vectorString = `[${embedding.join(',')}]`;
-    const results = await prisma.$queryRaw`
-      SELECT
-        id, name, "scientificName", description, "careInfo",
-        "soilNeeds", source, "createdAt", "updatedAt", "embedding",
-        1 - (embedding <=> ${vectorString}::vector) AS similarity
-      FROM "PlantInfo"
+    
+    if (!Array.isArray(queryEmbedding)) {
+      throw new Error(`queryEmbedding must be an array, got: ${typeof queryEmbedding}`);
+    }
+    
+    if (queryEmbedding.length === 0) {
+      throw new Error('queryEmbedding array cannot be empty');
+    }
+    
+    if (queryEmbedding.length !== 384) {
+      console.warn(`[VectorDB] Expected 384 dimensions, got ${queryEmbedding.length}`);
+    }
+    
+    // Validate numeric values in embedding
+    const hasInvalidNumbers = queryEmbedding.some(val => 
+      typeof val !== 'number' || isNaN(val) || !isFinite(val)
+    );
+    
+    if (hasInvalidNumbers) {
+      throw new Error('queryEmbedding contains invalid numbers (NaN or Infinity)');
+    }
+    
+    console.log('[VectorDB] Input validation passed:', {
+      embeddingLength: queryEmbedding.length,
+      limit,
+      threshold
+    });
+    
+    // Get plants with embeddings using raw SQL since embedding is Unsupported type
+    const allPlants = await prisma.$queryRaw`
+      SELECT 
+        id, name, "scientificName", description, "careInfo", "soilNeeds", source, 
+        "createdAt", "updatedAt", embedding
+      FROM "PlantInfo" 
       WHERE embedding IS NOT NULL
-      AND 1 - (embedding <=> ${vectorString}::vector) > ${threshold}
-      ORDER BY similarity DESC
-      LIMIT ${limit};
     `;
-    return Array.isArray(results) ? results : [];
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('Error querying vector database:', errorMessage, { embeddingSize: embedding.length, limit, threshold });
-    throw new Error(`Error querying vector database: ${errorMessage}`);
-  }
-};
 
-/**
- * Stores or updates plant information along with its vector embedding...
- * @param {PlantContextItem} plantInfo - ...
- * @param {number[]} embedding - ...
- * @returns {Promise<import('@prisma/client').PlantInfo>} ...
- */
-// Add export keyword
-export const storePlantInfoWithEmbedding = async (
-  plantInfo,
-  embedding
-) => {
-  if (!plantInfo || (!plantInfo.name && !plantInfo.scientificName)) {
-       throw new Error("Cannot store plant info without at least a name or scientific name.");
-  }
-   if (!Array.isArray(embedding) || embedding.length === 0) {
-       throw new Error(`Cannot store plant info for "${plantInfo.name || plantInfo.scientificName}" without a valid embedding.`);
-   }
-
-  try {
-    const orConditions = [];
-    if (plantInfo.name) {
-      orConditions.push({ name: plantInfo.name });
-    }
-    if (plantInfo.scientificName) {
-      orConditions.push({ scientificName: plantInfo.scientificName });
-    }
-    if (orConditions.length === 0) {
-      throw new Error("Internal error: Cannot construct where condition for finding existing plant.");
+    if (allPlants.length === 0) {
+      console.log('[VectorDB] No plants with embeddings found');
+      return [];
     }
 
-    const existingPlant = await prisma.plantInfo.findFirst({
-      where: { OR: orConditions },
+    console.log(`[VectorDB] Found ${allPlants.length} plants with embeddings, calculating similarities...`);
+
+    // Calculate cosine similarity in JavaScript
+    const similarities = allPlants.map(plant => {
+      const similarity = calculateCosineSimilarity(queryEmbedding, plant.embedding);
+      return {
+        id: plant.id,
+        name: plant.name,
+        scientificName: plant.scientificName,
+        description: plant.description,
+        careInfo: plant.careInfo,
+        soilNeeds: plant.soilNeeds,
+        source: plant.source,
+        similarity,
+        createdAt: plant.createdAt,
+        updatedAt: plant.updatedAt
+      };
     });
 
-    let savedPlant;
+    // Filter and sort by similarity (higher is better)
+    const filtered = similarities
+      .filter(item => item.similarity >= threshold)
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit);
 
-    if (existingPlant) {
-      console.log(`Updating existing plant record ID: ${existingPlant.id} (${plantInfo.name || plantInfo.scientificName})`);
-      const updateParams = [ /* ... same params ... */ ];
-      await prisma.$executeRaw` /* ... same update query ... */ `;
-      savedPlant = await prisma.plantInfo.findUniqueOrThrow({
-        where: { id: existingPlant.id }
-      });
-    } else {
-      console.log(`Creating new plant record for: ${plantInfo.name || plantInfo.scientificName}`);
-      const insertParams = [ /* ... same params ... */ ];
-      await prisma.$executeRaw` /* ... same insert query ... */ `;
-      savedPlant = await prisma.plantInfo.findFirst({
-        where: { OR: orConditions },
-        orderBy: { createdAt: 'desc' }
-      });
-      if (!savedPlant) {
-        throw new Error(`Failed to retrieve the newly created plant record for: ${plantInfo.name || plantInfo.scientificName}`);
-      }
+    console.log(`[VectorDB] Found ${filtered.length} similar plants above threshold ${threshold}`);
+    
+    if (filtered.length > 0) {
+      console.log(`[VectorDB] Top result: ${filtered[0].name} (similarity: ${filtered[0].similarity.toFixed(3)})`);
     }
-    return savedPlant;
-
+    
+    return filtered;
+    
   } catch (error) {
-     const errorMessage = error instanceof Error ? error.message : String(error);
-     console.error(`Error storing plant info for "${plantInfo.name || plantInfo.scientificName}":`, errorMessage);
-     throw new Error(`Error storing plant info: ${errorMessage}`);
+    console.error('[VectorDB] Query failed:', error);
+    console.error('[VectorDB] Debug info:', {
+      hasEmbedding: !!queryEmbedding,
+      embeddingType: typeof queryEmbedding,
+      embeddingLength: Array.isArray(queryEmbedding) ? queryEmbedding.length : 'N/A',
+      limit,
+      threshold,
+      errorMessage: error.message
+    });
+    
+    // Return empty array instead of throwing to allow graceful degradation
+    return [];
   }
-};
+}
+
+/**
+ * Store plant information with its embedding in the vector database
+ * @param {Object} plantData - Plant information to store
+ * @param {number[]} embedding - The embedding vector (384 dimensions)
+ * @returns {Promise<Object>} The stored record
+ */
+export async function storePlantInfoWithEmbedding(plantData, embedding) {
+  try {
+    // Validate inputs
+    if (!plantData || typeof plantData !== 'object') {
+      throw new Error('plantData must be a valid object');
+    }
+    
+    if (!plantData.name || typeof plantData.name !== 'string') {
+      throw new Error('plantData.name is required and must be a string');
+    }
+    
+    if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
+      throw new Error('embedding must be a non-empty array');
+    }
+    
+    if (embedding.length !== 384) {
+      throw new Error(`Expected 384-dimensional embedding, got ${embedding.length}`);
+    }
+    
+    // Validate embedding numbers
+    const hasInvalidNumbers = embedding.some(val => 
+      typeof val !== 'number' || isNaN(val) || !isFinite(val)
+    );
+    
+    if (hasInvalidNumbers) {
+      throw new Error('embedding contains invalid numbers');
+    }
+    
+    console.log('[VectorDB] Storing plant info:', {
+      name: plantData.name,
+      embeddingLength: embedding.length,
+      hasScientificName: !!plantData.scientificName,
+      hasDescription: !!plantData.description
+    });
+    
+    // Handle embedding storage with raw SQL since it's Unsupported type
+    const existingRecord = await prisma.plantInfo.findFirst({
+      where: {
+        name: plantData.name,
+        scientificName: plantData.scientificName || null
+      }
+    });
+
+    let result;
+    
+    if (existingRecord) {
+      // Update existing record with raw SQL for embedding
+      console.log(`[VectorDB] Updating existing record for: ${plantData.name}`);
+      
+      // First update the regular fields
+      await prisma.plantInfo.update({
+        where: { id: existingRecord.id },
+        data: {
+          description: plantData.description || '',
+          careInfo: plantData.careInfo || null,
+          soilNeeds: plantData.soilNeeds || null,
+          source: plantData.source || 'Unknown',
+          updatedAt: new Date()
+        }
+      });
+      
+      // Then update the embedding with raw SQL
+      await prisma.$executeRaw`
+        UPDATE "PlantInfo" 
+        SET embedding = ${embedding}::vector
+        WHERE id = ${existingRecord.id}
+      `;
+      
+      result = { id: existingRecord.id, name: plantData.name };
+      
+    } else {
+      // Create new record with raw SQL for embedding
+      console.log(`[VectorDB] Creating new record for: ${plantData.name}`);
+      
+      // First create without embedding
+      const newRecord = await prisma.plantInfo.create({
+        data: {
+          name: plantData.name,
+          scientificName: plantData.scientificName || null,
+          description: plantData.description || '',
+          careInfo: plantData.careInfo || null,
+          soilNeeds: plantData.soilNeeds || null,
+          source: plantData.source || 'Unknown'
+        }
+      });
+      
+      // Then add the embedding with raw SQL
+      await prisma.$executeRaw`
+        UPDATE "PlantInfo" 
+        SET embedding = ${embedding}::vector
+        WHERE id = ${newRecord.id}
+      `;
+      
+      result = newRecord;
+    }
+    
+    console.log(`[VectorDB] ✅ Successfully stored plant: ${plantData.name} (ID: ${result.id})`);
+    return result;
+    
+  } catch (error) {
+    console.error('[VectorDB] Error storing plant info:', error);
+    console.error('[VectorDB] Storage debug info:', {
+      plantName: plantData?.name,
+      hasEmbedding: !!embedding,
+      embeddingLength: Array.isArray(embedding) ? embedding.length : 'N/A',
+      errorMessage: error.message
+    });
+    throw new Error(`Error storing plant information: ${error.message}`);
+  }
+}
+
+/**
+ * Calculate cosine similarity between two vectors
+ * @param {number[]} a - First vector
+ * @param {number[]} b - Second vector  
+ * @returns {number} Similarity score (0-1, higher is more similar)
+ */
+function calculateCosineSimilarity(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    console.warn('[VectorDB] Invalid vectors for similarity calculation');
+    return 0;
+  }
+  
+  if (a.length !== b.length) {
+    console.warn(`[VectorDB] Vector length mismatch: ${a.length} vs ${b.length}`);
+    return 0;
+  }
+  
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  
+  normA = Math.sqrt(normA);
+  normB = Math.sqrt(normB);
+  
+  if (normA === 0 || normB === 0) return 0;
+  
+  return dotProduct / (normA * normB);
+}
+
+/**
+ * Get database statistics for monitoring
+ * @returns {Promise<Object>} Database statistics
+ */
+export async function getVectorDatabaseStats() {
+  try {
+    console.log('[VectorDB] Fetching database statistics...');
+    
+    const totalCount = await prisma.plantInfo.count();
+    
+    // Use raw SQL to count records with embeddings since embedding is Unsupported type
+    const withEmbeddingsResult = await prisma.$queryRaw`
+      SELECT COUNT(*) as count FROM "PlantInfo" WHERE embedding IS NOT NULL
+    `;
+    const withEmbeddings = Number(withEmbeddingsResult[0].count);
+    
+    const sourceCounts = await prisma.plantInfo.groupBy({
+      by: ['source'],
+      _count: { source: true },
+      orderBy: { _count: { source: 'desc' } },
+      take: 10
+    });
+    
+    const recentPlants = await prisma.plantInfo.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { name: true, createdAt: true, source: true }
+    });
+    
+    return {
+      totalRecords: totalCount,
+      recordsWithEmbeddings: withEmbeddings,
+      recordsWithoutEmbeddings: totalCount - withEmbeddings,
+      topSources: sourceCounts.map(s => ({
+        source: s.source,
+        count: s._count.source
+      })),
+      recentPlants: recentPlants,
+      lastUpdated: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('[VectorDB] Error fetching stats:', error);
+    return {
+      error: error.message,
+      totalRecords: 0,
+      recordsWithEmbeddings: 0
+    };
+  }
+}
+
+/**
+ * Test vector database connection and functionality
+ * @returns {Promise<Object>} Test results
+ */
+export async function testVectorDatabase() {
+  try {
+    console.log('[VectorDB] Testing database connection...');
+    
+    // Test 1: Basic connection and table access
+    const totalCount = await prisma.plantInfo.count();
+    
+    // Test 2: Check for records with embeddings using raw SQL
+    const embeddingCountResult = await prisma.$queryRaw`
+      SELECT COUNT(*) as count FROM "PlantInfo" WHERE embedding IS NOT NULL
+    `;
+    const embeddingCount = Number(embeddingCountResult[0].count);
+    
+    // Test 3: Sample a record if any exist
+    const sampleRecords = await prisma.$queryRaw`
+      SELECT id, name, embedding FROM "PlantInfo" 
+      WHERE embedding IS NOT NULL 
+      LIMIT 1
+    `;
+    const sampleRecord = sampleRecords.length > 0 ? sampleRecords[0] : null;
+    
+    return {
+      success: true,
+      connection: true,
+      tableExists: true,
+      totalRecords: totalCount,
+      recordsWithEmbeddings: embeddingCount,
+      embeddingDimension: sampleRecord?.embedding?.length || null,
+      samplePlant: sampleRecord ? {
+        name: sampleRecord.name,
+        hasEmbedding: !!sampleRecord.embedding
+      } : null,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('[VectorDB] Database test failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Search plants by name (non-vector search)
+ * @param {string} searchTerm - Term to search for
+ * @param {number} limit - Maximum results to return
+ * @returns {Promise<Array>} Matching plants
+ */
+export async function searchPlantsByName(searchTerm, limit = 10) {
+  try {
+    if (!searchTerm || typeof searchTerm !== 'string') {
+      return [];
+    }
+    
+    const results = await prisma.plantInfo.findMany({
+      where: {
+        OR: [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          { scientificName: { contains: searchTerm, mode: 'insensitive' } }
+        ]
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+    
+    console.log(`[VectorDB] Name search for "${searchTerm}" found ${results.length} results`);
+    return results;
+    
+  } catch (error) {
+    console.error('[VectorDB] Name search failed:', error);
+    return [];
+  }
+}

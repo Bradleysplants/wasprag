@@ -4,4 +4,147 @@
 @tailwind components;
 @tailwind utilities;
 
-  
+  /* Add this to your Main.css file */
+
+/* ===== Wasp LoginForm Theme Adaptation ===== */
+
+/* Style the login form container */
+.login-form-container {
+  /* Inherit theme colors */
+}
+
+/* Target Wasp's form inputs */
+.login-form-container input[type="email"],
+.login-form-container input[type="password"],
+.login-form-container input[type="text"] {
+  background-color: rgb(var(--color-bg-secondary)) !important;
+  border: 1px solid rgb(var(--color-border-primary)) !important;
+  color: rgb(var(--color-text-primary)) !important;
+  border-radius: 0.5rem !important;
+  padding: 0.75rem 1rem !important;
+  font-size: 0.875rem !important;
+  transition: all 0.2s ease !important;
+  width: 100% !important;
+  margin-bottom: 1rem !important;
+}
+
+/* Focus states for inputs */
+.login-form-container input[type="email"]:focus,
+.login-form-container input[type="password"]:focus,
+.login-form-container input[type="text"]:focus {
+  outline: none !important;
+  border-color: rgb(var(--color-plant-primary)) !important;
+  box-shadow: 0 0 0 3px rgba(var(--color-plant-primary), 0.1) !important;
+}
+
+/* Placeholder text */
+.login-form-container input::placeholder {
+  color: rgb(var(--color-text-tertiary)) !important;
+}
+
+/* Style the submit button */
+.login-form-container button[type="submit"],
+.login-form-container input[type="submit"] {
+  background-color: rgb(var(--color-plant-primary)) !important;
+  color: rgb(var(--color-text-inverse)) !important;
+  border: none !important;
+  border-radius: 0.5rem !important;
+  padding: 0.75rem 1.5rem !important;
+  font-weight: 600 !important;
+  font-size: 0.875rem !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  width: 100% !important;
+  margin-top: 0.5rem !important;
+}
+
+/* Button hover state */
+.login-form-container button[type="submit"]:hover,
+.login-form-container input[type="submit"]:hover {
+  background-color: rgb(var(--color-plant-primary-dark)) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: rgb(var(--shadow-subtle)) !important;
+}
+
+/* Button disabled state */
+.login-form-container button[type="submit"]:disabled,
+.login-form-container input[type="submit"]:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* Style any labels */
+.login-form-container label {
+  color: rgb(var(--color-text-primary)) !important;
+  font-weight: 500 !important;
+  font-size: 0.875rem !important;
+  margin-bottom: 0.25rem !important;
+  display: block !important;
+}
+
+/* Style any error messages */
+.login-form-container .error,
+.login-form-container [class*="error"] {
+  color: rgb(var(--color-accent-berry)) !important;
+  font-size: 0.75rem !important;
+  margin-top: 0.25rem !important;
+}
+
+/* Style any success messages */
+.login-form-container .success,
+.login-form-container [class*="success"] {
+  color: rgb(var(--color-plant-primary)) !important;
+  font-size: 0.75rem !important;
+  margin-top: 0.25rem !important;
+}
+
+/* Override any Wasp default styles that might conflict */
+.login-form-container * {
+  font-family: "Nunito Sans", ui-sans-serif, system-ui, sans-serif !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .login-form-container input,
+  .login-form-container button {
+    padding: 0.875rem 1rem !important;
+    font-size: 1rem !important;
+  }
+}
+
+/* ===== Additional Auth Page Improvements ===== */
+
+/* Make sure the page background adapts properly */
+.auth-page-bg {
+  background: linear-gradient(
+    135deg, 
+    rgb(var(--color-plant-subtle)), 
+    rgb(var(--color-bg-secondary)), 
+    rgb(var(--color-bg-primary))
+  ) !important;
+  min-height: 100vh;
+}
+
+/* Ensure proper contrast in dark mode */
+.dark .login-form-container input {
+  background-color: rgb(var(--color-bg-tertiary)) !important;
+}
+
+/* Loading states */
+.login-form-container button:disabled::after {
+  content: "";
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.5rem;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

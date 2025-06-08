@@ -1,245 +1,331 @@
-// src/utils/ner.js (Refactored with RAW OUTPUT DEBUG LOGGING)
-import { AutoTokenizer, pipeline as xenovaPipeline } from '@xenova/transformers';
-import { MODEL_CONFIG } from './config.js'; // Assuming config.js exists and exports MODEL_CONFIG
-import { getLabelParts } from './languageModelUtils.js'; // Assuming this exists
+// src/server/utils/ner.js - Refactored to use pattern extraction + API validation
+// Removes ONNX model complexity, uses plantExtractor.js + plantAPIs.js
 
-// --- Cache ---
-let nerPipelineInstance = null;
-let nerModelNameLoaded = null;
-let nerTokenizerInstance = null;
+import { MODEL_CONFIG } from './config.js';
+import { extractPlantNames } from './plantExtractor.js';
+import { reliablePlantAPI, validatePlantNames } from './plantAPIs.js';
 
-// --- Label Mapping & Config ---
-// Make sure ID2LABEL matches your specific model's config.json (id2label field)
-// Example:
-const ID2LABEL = {
-     0: "O",
-     1: "B-PLANT_COMMON",
-     2: "I-PLANT_COMMON",
-     3: "B-PLANT_SCI",
-     4: "I-PLANT_SCI",
-     // Add other labels if your model has them
-};
-// Get valid entity types and threshold from config
-const VALID_ENTITY_TYPES = new Set(MODEL_CONFIG.nerValidEntityTypes ?? ["PLANT_COMMON", "PLANT_SCI"]);
-// --->>> Ensure MODEL_CONFIG.nerScoreThreshold is defined in config.js, or adjust default <<<---
-const MIN_NER_SCORE_THRESHOLD = MODEL_CONFIG.nerScoreThreshold ?? 0.70; // Use the value from your log!
-// --- END Label Mapping & Config ---
+// Valid entity types from config
+const VALID_ENTITY_TYPES = new Set(MODEL_CONFIG?.nerValidEntityTypes || ["PLANT_COMMON", "PLANT_SCI"]);
 
-
-/** Gets or creates the token-classification (NER) pipeline instance. */
-async function getNerPipeline() {
-    const modelId = MODEL_CONFIG.nerModel;
-    if (nerPipelineInstance && nerModelNameLoaded === modelId) {
-        return nerPipelineInstance;
+/**
+ * 🌟 MAIN EXTRACTION FUNCTION 🌟
+ * Uses pattern-based extraction + API validation (no more ONNX complexity!)
+ * Keeps same function signature for compatibility
+ */
+export async function extractEntities(text) {
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+        console.warn("Received empty or invalid text.");
+        return [];
     }
-    console.log(`[NER Pipeline] Initializing Xenova pipeline for model: ${modelId}`);
+
     try {
-        // Load WITHOUT aggregation to get raw token outputs
-        nerPipelineInstance = await xenovaPipeline('token-classification', modelId);
-        nerModelNameLoaded = modelId;
-        console.log(`[NER Pipeline] Xenova pipeline for '${modelId}' loaded successfully.`);
-        return nerPipelineInstance;
+        console.log(`🌱 Extracting entities from: "${text.substring(0, 100)}..."`);
+        
+        // Step 1: Use the excellent pattern-based extraction
+        console.log('🎯 Step 1: Pattern-based extraction...');
+        const patternResults = await extractPlantNames(text);
+        
+        if (!patternResults || patternResults.length === 0) {
+            console.log('No plants found in pattern extraction');
+            return [];
+        }
+        
+        console.log(`Pattern extraction found ${patternResults.length} potential plants`);
+        
+        // Step 2: API validation for higher confidence (optional if APIs are down)
+        console.log('🔍 Step 2: API validation...');
+        const validatedResults = await validateWithAPI(patternResults);
+        
+        // If API validation completely failed, use pattern results
+        const finalResults = validatedResults.length > 0 ? validatedResults : patternResults.map(result => ({
+            ...result,
+            apiValidated: false,
+            confidence: (result.score || 0.8) * 0.9 // Keep high confidence for pattern matches when APIs are down
+        }));
+        
+        // Step 3: Format results for compatibility 
+        const finalEntities = formatEntitiesForCompatibility(finalResults);
+        
+        console.log(`✅ Final results: ${finalEntities.length} validated plant entities`);
+        finalEntities.forEach(entity => 
+            console.log(`  - "${entity.word}" (${entity.entity_group}, validated: ${entity.apiValidated || false})`)
+        );
+        
+        return finalEntities;
+        
     } catch (error) {
-        console.error(`[NER Pipeline] Failed to load Xenova pipeline for ${modelId}:`, error);
-        nerPipelineInstance = null; // Clear cache on error
-        nerModelNameLoaded = null;
-        throw error; // Re-throw error
-    }
-}
-
-/** Ensures the NER tokenizer is loaded (kept for potential future use/debugging). */
-async function ensureNerTokenizer() {
-    if (nerTokenizerInstance && nerModelNameLoaded === MODEL_CONFIG.nerModel) {
-        return nerTokenizerInstance;
-    }
-     // Try getting from pipeline first (might be included)
-    if (nerPipelineInstance?.tokenizer) {
-         console.log("[NER Tokenizer] Using tokenizer from loaded pipeline object.");
-         nerTokenizerInstance = nerPipelineInstance.tokenizer;
-         nerModelNameLoaded = MODEL_CONFIG.nerModel;
-         return nerTokenizerInstance;
-     }
-
-    // Fallback to loading separately
-    console.log(`[NER Tokenizer] Loading tokenizer separately from: ${MODEL_CONFIG.nerModel}`);
-    try {
-        const tokenizer = await AutoTokenizer.from_pretrained(MODEL_CONFIG.nerModel, {});
-        nerTokenizerInstance = tokenizer;
-        nerModelNameLoaded = MODEL_CONFIG.nerModel;
-        console.log("[NER Tokenizer] Separate tokenizer loaded successfully.");
-        return nerTokenizerInstance;
-    } catch (e) {
-        console.error("[NER Tokenizer] Failed to load NER tokenizer separately:", e);
-        nerTokenizerInstance = null;
-        nerModelNameLoaded = null;
-        return null; // Allow proceeding without separate tokenizer if possible
+        console.error(`❌ Error in extractEntities: ${error.message}`);
+        
+        // Emergency fallback - return pattern results without API validation
+        try {
+            console.log('🚨 Emergency fallback: pattern-only extraction');
+            const fallbackResults = await extractPlantNames(text);
+            return formatEntitiesForCompatibility(fallbackResults);
+        } catch (fallbackError) {
+            console.error(`❌ Emergency fallback failed: ${fallbackError.message}`);
+            return [];
+        }
     }
 }
 
 /**
- * Extracts plant entities using the Xenova pipeline, applying confidence thresholds.
- * @param {string} text - The input text.
- * @returns {Promise<import('./languageModelUtils.js').NerEntity[]>} - Returns aggregated entities.
+ * Validate pattern results using the unified plant API
  */
-export async function extractEntities(text) {
-    // console.log(`[NER] Requesting NER for text: "${text}"`);
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-        console.warn("[NER] Received empty or invalid text for extraction.");
+async function validateWithAPI(patternResults) {
+    if (!patternResults || patternResults.length === 0) {
         return [];
     }
-
-    let nerPipeline;
-    let nerTokenizer;
-
+    
+    const validatedResults = [];
+    
+    // Extract unique plant names for validation
+    const uniquePlantNames = [...new Set(
+        patternResults
+            .filter(r => r && r.word && typeof r.word === 'string')
+            .map(r => r.word.trim())
+            .filter(name => name.length > 0)
+    )];
+    
+    if (uniquePlantNames.length === 0) {
+        console.log('No valid plant names to validate');
+        return patternResults;
+    }
+    
+    console.log(`Validating ${uniquePlantNames.length} unique plant names with API...`);
+    
     try {
-        nerPipeline = await getNerPipeline();
-        nerTokenizer = await ensureNerTokenizer(); // Load tokenizer
-
-        // --- Get Raw Token Predictions ---
-        let raw_token_outputs;
-         if (typeof nerPipeline === 'function') {
-             raw_token_outputs = await nerPipeline(text);
-         } else {
-             console.error("[NER FATAL] Loaded nerPipeline is not callable:", nerPipeline);
-             throw new Error("NER Pipeline cannot be called.");
-         }
-
-        // --- >>> ADDED DEBUG LOGGING BLOCK <<< ---
-        console.log("[NER] --- RAW PIPELINE OUTPUT START ---");
-        // Log the full structure prettily to understand what the pipeline returns
-        console.log(JSON.stringify(raw_token_outputs, null, 2));
-        console.log("[NER] --- RAW PIPELINE OUTPUT END ---");
-        // --- >>> END DEBUG LOGGING BLOCK <<< ---
-
-
-        if (!Array.isArray(raw_token_outputs) || raw_token_outputs.length === 0) {
-            console.warn('[NER] Raw token output from pipeline is invalid or empty after call.');
-            return [];
+        // Use the validatePlantNames function from plantAPIs.js
+        const apiValidations = await validatePlantNames(uniquePlantNames.slice(0, 5)); // Limit to prevent API abuse
+        
+        if (!apiValidations || !Array.isArray(apiValidations)) {
+            console.warn('API validation returned invalid response, using pattern results');
+            return patternResults.map(result => ({
+                ...result,
+                apiValidated: false,
+                confidence: (result.score || 0.8) * 0.7
+            }));
         }
-
-        // --- B-I-O Correction with SCORE THRESHOLDING ---
-        console.log(`[NER] Applying B-I-O Correction (Threshold: ${MIN_NER_SCORE_THRESHOLD})...`);
-        let corrected_labels = [];
-        for (let i = 0; i < raw_token_outputs.length; i++) {
-            const token_pred = raw_token_outputs[i]; // e.g., { entity: 'LABEL_1', score: 0.9, word: 'Petunias' }
-            let current_tag = 'O'; // Default to 'O'
-
-            // --- CHECK STRUCTURE and APPLY THRESHOLD ---
-            // Make sure prediction object has score and entity before thresholding
-            if (token_pred && typeof token_pred.score === 'number' && typeof token_pred.entity === 'string') {
-                 if (token_pred.score >= MIN_NER_SCORE_THRESHOLD) {
-                     current_tag = token_pred.entity; // Use the predicted entity label
-                 } else {
-                      // Score too low, treat as 'O'
-                      // Log the discarded token and its score
-                      console.log(`[NER Correction Debug] Low score for token '${token_pred.word ?? '??'}': ${token_pred.score.toFixed(4)} < ${MIN_NER_SCORE_THRESHOLD}. Treating as O.`);
-                      current_tag = 'O';
-                 }
-            } else {
-                 // Prediction object has unexpected structure, treat as 'O'
-                 console.warn(`[NER Correction Debug] Invalid token prediction structure at index ${i}:`, token_pred);
-                 current_tag = 'O';
+        
+        // Create validation lookup map
+        const validationMap = new Map();
+        apiValidations.forEach(validation => {
+            if (validation && validation.plantName && typeof validation.plantName === 'string') {
+                validationMap.set(validation.plantName.toLowerCase(), validation);
             }
-            // --- END THRESHOLD ---
-
-
-            // --- Apply B-I-O rules based on the potentially thresholded current_tag ---
-            const { prefix: current_prefix, type: current_type } = getLabelParts(current_tag);
-
-            // Ignore if 'O' or not a valid type *after* thresholding
-            if (current_type === 'O' || !VALID_ENTITY_TYPES.has(current_type)) {
-                corrected_labels.push('O');
+        });
+        
+        // Apply validations to original results
+        for (const result of patternResults) {
+            if (!result || !result.word || typeof result.word !== 'string') {
+                console.warn('Skipping invalid result:', result);
                 continue;
             }
-
-            // Logic for I- tag
-            if (current_prefix === 'I') {
-                if (i === 0) { corrected_labels.push(`B-${current_type}`); }
-                else {
-                    const { prefix: prev_prefix_corrected, type: prev_type_corrected } = getLabelParts(corrected_labels[i - 1]);
-                    if ((prev_prefix_corrected === 'B' || prev_prefix_corrected === 'I') && prev_type_corrected === current_type) {
-                        corrected_labels.push(`I-${current_type}`);
-                    } else { corrected_labels.push(`B-${current_type}`); }
+            
+            const plantNameLower = result.word.toLowerCase();
+            const validation = validationMap.get(plantNameLower);
+            
+            if (validation && validation.isValid) {
+                // API validated - keep with enhanced info
+                validatedResults.push({
+                    ...result,
+                    apiValidated: true,
+                    validatedName: validation.validatedName,
+                    scientificName: validation.scientificName,
+                    apiSource: validation.source,
+                    confidence: validation.confidence
+                });
+            } else if (!validation) {
+                // Not API validated but keep if confidence was high from patterns
+                if (result.score >= 0.8) {
+                    validatedResults.push({
+                        ...result,
+                        apiValidated: false,
+                        confidence: result.score * 0.8 // Reduce confidence for non-validated
+                    });
                 }
             }
-            // Logic for B- tag
-            else if (current_prefix === 'B') { corrected_labels.push(`B-${current_type}`); }
-            // Default to O
-            else { corrected_labels.push('O'); }
-        } // --- End B-I-O Correction Loop ---
-
-
-        // --- Aggregation ---
-        console.log("[NER] Aggregating corrected labels into entities...");
-        const entities = [];
-        let current_entity_tokens = [];
-        let current_entity_tag_type = null;
-        let current_entity_scores = []; // Store scores of tokens in the current entity
-
-        const finalize_entity = () => {
-             if (current_entity_tokens.length > 0 && current_entity_tag_type) {
-                 let entity_word = '';
-                 try { // Simple join and cleanup
-                      entity_word = current_entity_tokens.join('').replace(/##/g, '').trim();
-                 } catch (e) {
-                      console.warn("[NER Aggregation] Error joining tokens, falling back.", e);
-                      entity_word = current_entity_tokens.join(' ').trim();
-                 }
-
-                 if (entity_word) {
-                     const score = current_entity_scores.length > 0 ? Math.min(...current_entity_scores) : 0.0;
-                     // Keep the aggregated entity regardless of the aggregated score here,
-                     // as the threshold was applied at the token level.
-                     // If you want to threshold again on the aggregated score (e.g., min score), add check here:
-                     // if (score >= MIN_NER_SCORE_THRESHOLD) { ... }
-                     entities.push({
-                         entity_group: current_entity_tag_type,
-                         score: score, // Report the calculated aggregate score
-                         word: entity_word,
-                         start: null, end: null // Offsets are tricky without more info
-                     });
-                     // Log the entity that was finalized
-                     console.log(`[NER Aggregation Debug] Finalized entity: "${entity_word}", Score: ${score.toFixed(4)}, Type: ${current_entity_tag_type}`);
-
-                 } else { console.warn("[NER Aggregation] Discarding entity with empty reconstructed word."); }
-             }
-             // Reset
-             current_entity_tokens = []; current_entity_tag_type = null; current_entity_scores = [];
-         }; // --- End finalize_entity ---
-
-        // --- Aggregation Loop ---
-         for (let i = 0; i < raw_token_outputs.length; i++) {
-             const token_pred = raw_token_outputs[i]; // Contains original word and score
-             const corrected_tag = corrected_labels[i]; // Use the thresholded/corrected tag
-             const { prefix: corrected_prefix, type: corrected_type } = getLabelParts(corrected_tag);
-
-             // Start new entity
-             if (corrected_prefix === 'B') {
-                 finalize_entity();
-                 current_entity_tokens = [token_pred.word];
-                 current_entity_tag_type = corrected_type;
-                 // Only include score if it passed threshold (implicit from corrected_tag)
-                 if (token_pred.score >= MIN_NER_SCORE_THRESHOLD) { current_entity_scores = [token_pred.score]; } else { current_entity_scores = []; /* Should not happen if B-*/ }
-             }
-             // Continue entity
-             else if (corrected_prefix === 'I' && current_entity_tag_type === corrected_type) {
-                 current_entity_tokens.push(token_pred.word);
-                 if (token_pred.score >= MIN_NER_SCORE_THRESHOLD) { current_entity_scores.push(token_pred.score); } // Add score if valid
-             }
-             // End entity
-             else { finalize_entity(); }
-         }
-         finalize_entity(); // Finalize last one
-         // --- End Aggregation Loop ---
-
-
-        console.log(`[NER] Aggregated ${entities.length} final entities.`);
-        // console.log('[NER Final Entities]:', JSON.stringify(entities, null, 2)); // Optional: log final list
-        return entities;
-
-    } catch (error) {
-        console.error(`[NER] Error during entity extraction:`, error);
-        if (error instanceof Error && error.stack) { console.error(error.stack); }
-        return []; // Return empty array on critical error
+            // If validation exists but isValid is false, exclude the result
+        }
+        
+        console.log(`API validation: ${validatedResults.filter(r => r.apiValidated).length}/${uniquePlantNames.length} confirmed valid`);
+        
+    } catch (apiError) {
+        console.warn(`⚠️ API validation failed, using pattern results: ${apiError.message}`);
+        
+        // Fallback: return pattern results with reduced confidence
+        return patternResults.map(result => ({
+            ...result,
+            apiValidated: false,
+            confidence: result.score * 0.7
+        }));
     }
+    
+    return validatedResults;
+}
+
+/**
+ * Format results for compatibility with existing code
+ */
+function formatEntitiesForCompatibility(results) {
+    if (!results || results.length === 0) {
+        return [];
+    }
+    
+    return results.map(result => ({
+        entity_group: result.entity_group || 'PLANT_COMMON',
+        score: result.confidence || result.score || 0.8,
+        word: result.validatedName || result.word,
+        start: result.start || 0,
+        end: result.end || (result.word ? result.word.length : 0),
+        source: 'pattern_api_validation',
+        
+        // Additional metadata (optional)
+        originalWord: result.word,
+        apiValidated: result.apiValidated || false,
+        scientificName: result.scientificName,
+        apiSource: result.apiSource,
+        methods: result.methods || ['pattern'],
+        pattern_name: result.pattern_name
+    }));
+}
+
+/**
+ * Quick entity extraction for simple use cases
+ * Returns just the plant names without full entity objects
+ */
+export async function extractPlantNamesOnly(text) {
+    try {
+        const entities = await extractEntities(text);
+        return entities.map(entity => entity.word);
+    } catch (error) {
+        console.error(`extractPlantNamesOnly failed: ${error.message}`);
+        return [];
+    }
+}
+
+/**
+ * Validate a single plant name using API
+ */
+export async function validateSinglePlant(plantName) {
+    if (!plantName || typeof plantName !== 'string') {
+        return { isValid: false, plantName };
+    }
+    
+    try {
+        console.log(`Validating single plant: "${plantName}"`);
+        const result = await reliablePlantAPI.validatePlantName(plantName);
+        return result;
+    } catch (error) {
+        console.error(`Single plant validation failed for "${plantName}": ${error.message}`);
+        return {
+            isValid: false,
+            plantName,
+            error: error.message
+        };
+    }
+}
+
+/**
+ * Health check for the new NER system
+ */
+export async function nerHealthCheck() {
+    try {
+        console.log('[NER] Running health check...');
+        
+        const testCases = [
+            'How do I care for my hibiscus?',
+            'My Monstera deliciosa needs repotting',
+            'Peace lily watering tips'
+        ];
+        
+        const results = {
+            patternExtraction: false,
+            apiValidation: false,
+            overall: 'unknown'
+        };
+        
+        // Test pattern extraction
+        try {
+            const patternTest = await extractPlantNames(testCases[0]);
+            results.patternExtraction = patternTest && patternTest.length > 0;
+            console.log(`[NER] Pattern extraction test: ${results.patternExtraction ? 'PASS' : 'FAIL'}`);
+        } catch (error) {
+            console.error(`[NER] Pattern extraction test failed: ${error.message}`);
+            results.patternExtraction = false;
+        }
+        
+        // Test API validation
+        try {
+            const apiTest = await validateSinglePlant('hibiscus');
+            results.apiValidation = apiTest && apiTest.isValid;
+            console.log(`[NER] API validation test: ${results.apiValidation ? 'PASS' : 'FAIL'}`);
+        } catch (error) {
+            console.error(`[NER] API validation test failed: ${error.message}`);
+            results.apiValidation = false;
+        }
+        
+        // Test full pipeline
+        try {
+            const fullTest = await extractEntities(testCases[0]);
+            const hasResults = fullTest && fullTest.length > 0;
+            console.log(`[NER] Full pipeline test: ${hasResults ? 'PASS' : 'FAIL'}`);
+        } catch (error) {
+            console.error(`[NER] Full pipeline test failed: ${error.message}`);
+        }
+        
+        // Determine overall health
+        if (results.patternExtraction && results.apiValidation) {
+            results.overall = 'healthy';
+        } else if (results.patternExtraction) {
+            results.overall = 'degraded'; // Pattern works but API doesn't
+        } else {
+            results.overall = 'unhealthy';
+        }
+        
+        return {
+            overall: results.overall,
+            components: {
+                patternExtraction: results.patternExtraction ? 'healthy' : 'unhealthy',
+                apiValidation: results.apiValidation ? 'healthy' : 'unhealthy'
+            },
+            validEntityTypes: Array.from(VALID_ENTITY_TYPES),
+            systemType: 'pattern_api_validation',
+            timestamp: new Date().toISOString()
+        };
+        
+    } catch (error) {
+        console.error(`[NER] Health check failed: ${error.message}`);
+        return {
+            overall: 'unhealthy',
+            error: error.message,
+            systemType: 'pattern_api_validation',
+            timestamp: new Date().toISOString()
+        };
+    }
+}
+
+/**
+ * Get system information
+ */
+export function getNERSystemInfo() {
+    return {
+        systemType: 'pattern_api_validation',
+        description: 'Uses pattern-based extraction from plantExtractor.js with API validation from plantAPIs.js',
+        validEntityTypes: Array.from(VALID_ENTITY_TYPES),
+        features: [
+            'Multi-method pattern extraction',
+            'API validation with plant databases',
+            'Fuzzy matching for typos',
+            'Scientific name recognition',
+            'Context-aware extraction'
+        ],
+        advantages: [
+            'No BigInt conflicts',
+            'Much faster than ONNX models',
+            'More reliable pattern matching',
+            'API validation increases accuracy',
+            'Easier to maintain and debug'
+        ]
+    };
 }

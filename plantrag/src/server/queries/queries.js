@@ -142,3 +142,24 @@ export const findSimilarPlants = async (args, context) => { // <-- Added export
   }
 };
 
+export const getCurrentUser = async (args, context) => {
+  if (!context.user) {
+    throw new HttpError(401);
+  }
+  const user = await context.entities.User.findUnique({
+    where: { id: context.user.id },
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      // THEME PROPERTY IS ALREADY HERE!
+      theme: true,
+    },
+  });
+  if (!user) {
+    throw new HttpError(404, 'User not found');
+  }
+    console.log("getCurrentUser returning:", { user }); // <--- Your log
+  return { user };
+};
