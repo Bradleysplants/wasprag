@@ -1,4 +1,4 @@
-// schema.prisma - FIXED: Proper vector indexing (no btree for vectors)
+// schema.prisma - CORRECTED: Fixed ID types and constraints
 
 generator client {
   provider        = "prisma-client-js"
@@ -8,7 +8,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [vector(schema: "public")]
+  extensions = [vector]
 }
 
 model User {
@@ -26,13 +26,14 @@ model User {
   // Relations
   subscription               Subscription?
   payments                   Payment[]
+  messages                   Message[]
 }
 
 model PlantInfo {
-  id             Int      @id @default(autoincrement())
+  id             String   @id  // Changed from Int to String to support composite IDs like "GBIF_12345"
   name           String
   scientificName String?
-  description    String   @db.Text
+  description    String?  @db.Text  // Made nullable since not all plants have descriptions
   careInfo       String?  @db.Text
   soilNeeds      String?  @db.Text
   source         String
@@ -40,11 +41,46 @@ model PlantInfo {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@unique([name, scientificName])
+  // Fixed: Removed problematic unique constraint on name+scientificName
+  // since same plant can come from multiple sources
+  @@unique([id])  // ID is already unique, but explicit for clarity
   @@index([name])
   @@index([scientificName])
   @@index([source])
   @@index([createdAt])
+  @@map("plant_info")  // Added explicit table mapping for consistency
+}
+
+model Message {
+  id          Int      @id @default(autoincrement())
+  content     String   @db.Text // Allow long messages
+  type        String   // 'user' or 'assistant'
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Metadata for enhanced messages
+  sources     Json?    // Botanical sources used
+  responseType String? // 'botanical', 'botanical_llm', 'mixed', etc.
+  entities    Json?    // Plant entities detected
+  plantCount  Int?     // Number of plants mentioned
+  reasoning   String?  // AI reasoning process
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("messages")
+  @@index([userId, createdAt]) // Optimize queries by user and date
+}
+
+// System notifications for cleanup tracking
+model SystemNotification {
+  id        Int      @id @default(autoincrement())
+  type      String   // 'MESSAGE_CLEANUP', etc.
+  message   String
+  data      Json?    // Additional data
+  createdAt DateTime @default(now())
+
+  @@map("system_notifications")
 }
 
 // Subscription model (unchanged)

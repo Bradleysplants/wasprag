@@ -1,4 +1,4 @@
-// src/client/Layout.jsx (Debug V2)
+// src/client/Layout.jsx (Fixed Version)
 import React, { useEffect } from 'react';
 import { useAuth, logout } from 'wasp/client/auth';
 import { Outlet } from 'react-router-dom';
@@ -12,10 +12,9 @@ import '../../../src/client/pages/Root.jsx';
 import { useQuery } from '@tanstack/react-query';
 import { getCurrentUser } from 'wasp/client/operations';
 
-
 export const Layout = () => {
   const { data: user, isLoading: isAuthLoading } = useAuth();
-  
+    
   // Use @tanstack/react-query to match ThemeToggle and AccountSettingsPage
   const { data: currentUser, isLoading: isUserLoading, error: userError } = useQuery({
     queryKey: ['currentUser'],
@@ -39,7 +38,7 @@ export const Layout = () => {
 
     // Try multiple ways to get the theme
     let themeToApply = 'light'; // default
-    
+        
     if (currentUser?.theme) {
       themeToApply = currentUser.theme;
     } else if (currentUser?.user?.theme) {
@@ -54,10 +53,9 @@ export const Layout = () => {
     root.classList.remove('light', 'dark');
     // Add new theme class
     root.classList.add(themeToApply);
-    
+        
     console.log("Layout: Applied theme to document:", themeToApply);
     console.log("Layout: Document classes after update:", root.className);
-
   }, [currentUser, isUserLoading, userError]); // Watch entire currentUser object
 
   const handleLogout = async () => {
@@ -74,12 +72,20 @@ export const Layout = () => {
   const displayName = getUserDisplayNameFromUser(user);
 
   return (
-    <div className="flex flex-col min-h-screen bg-plant-subtle dark:bg-gray-900 font-sans text-neutral-dark dark:text-gray-100 transition-colors duration-300">
-      {!isAuthLoading && <NavBar userDisplayName={displayName} onLogout={handleLogout} />}
-      <main className="flex-1 w-full max-w-full flex flex-col">
+    <div className="min-h-screen m-0 p-0 flex flex-col overflow-x-hidden bg-plant-subtle dark:bg-gray-900 font-sans text-neutral-dark dark:text-gray-100 transition-colors duration-300">
+      {!isAuthLoading && (
+        <div className="flex-shrink-0">
+          <NavBar userDisplayName={displayName} onLogout={handleLogout} />
+        </div>
+      )}
+      
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <Outlet />
       </main>
-      <Footer />
+      
+      <div className="flex-shrink-0">
+        <Footer />
+      </div>
     </div>
   );
 };

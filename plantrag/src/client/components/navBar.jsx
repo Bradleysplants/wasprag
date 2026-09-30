@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'wasp/client/router';
 import { useAuth } from 'wasp/client/auth'; // Import Wasp's auth hook
 import { LogoutButton } from './logoutButton.jsx';
+import { SubscriptionManageButton } from './subscriptionManageButton.jsx';
 import ThemeToggle from './themeToggle.jsx';
 
 // Define the NavBar component
@@ -76,7 +77,7 @@ export const NavBar = ({ userDisplayName, onLogout }) => {
   // Main component rendering
   return (
     <nav className="sticky top-0 z-20 bg-white dark:bg-gray-800 shadow-subtle transition-colors duration-300">
-      <div className="container mx-auto px-4 sm:px-6 py-3">
+      <div className="container mx-auto px-2 sm:px-6 py-3">
         <div className="flex justify-between items-center">
 
           {/* Branding Section (Logo + Title) */}
@@ -96,79 +97,118 @@ export const NavBar = ({ userDisplayName, onLogout }) => {
               <button
                 type="button"
                 onClick={toggleDropdown}
-                className="flex items-center space-x-2 rounded-full p-1 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary group"
+                className="flex items-center space-x-2 rounded-lg px-2 py-1 hover:bg-green-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary group transition-all duration-200"
                 aria-haspopup="true"
                 aria-expanded={isDropdownOpen}
                 id="user-menu-button"
               >
-                <div className={`w-8 h-8 rounded-full bg-earth-brown flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-sm transition-all ${isDropdownOpen ? 'ring-2 ring-plant-primary/50' : 'group-hover:ring-2 group-hover:ring-plant-primary/50'}`}>
+                <div className={`w-8 h-8 rounded-full bg-earth-brown flex-shrink-0 flex items-center justify-center text-white font-bold text-sm shadow-sm transition-all duration-200 ${isDropdownOpen ? 'ring-2 ring-plant-primary/50 scale-105' : 'group-hover:ring-2 group-hover:ring-plant-primary/50'}`}>
                   {userInitial}
                 </div>
-                <span className="hidden sm:inline text-neutral-medium dark:text-gray-300 text-sm group-hover:text-neutral-dark dark:group-hover:text-white transition-colors">
+                <span className="hidden sm:inline text-gray-700 dark:text-gray-300 text-sm group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                   {displayName}
                 </span>
+                {/* Animated Dropdown Indicator */}
+                <div className={`transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`}>
+                  <svg 
+                    className="w-4 h-4 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </button>
 
               {/* Dropdown Menu */}
               <div
                 className={`
-                  absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-gray-800 py-2 px-2 
-                  shadow-lg ring-1 ring-black dark:ring-gray-600 ring-opacity-5 focus:outline-none
-                  transition ease-out duration-100 transform
+                  absolute right-0 mt-2 w-52 origin-top-right rounded-xl bg-white dark:bg-gray-800 
+                  shadow-lg border border-gray-200 dark:border-gray-600
+                  transition-all ease-out duration-150 transform
                   ${isDropdownOpen ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-95 invisible'}
-                  z-30
+                  z-40
                 `}
                 role="menu"
                 aria-orientation="vertical"
                 aria-labelledby="user-menu-button"
                 tabIndex="-1"
               >
-                <div className="px-2 py-2 text-sm text-neutral-dark dark:text-gray-200 border-b border-neutral-light dark:border-gray-600 mb-1"> 
-                  Signed in as <br/>
-                  <span className="font-medium break-words block">{displayName}</span> 
+                {/* Compact User Info */}
+                <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-700"> 
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">🌱 {displayName}</p> 
                 </div>
 
-                <Link
-                  to="/account-settings"
-                  role="menuitem"
-                  tabIndex="-1"
-                  id="user-menu-item-0"
-                  className="block w-full text-left px-3 py-2 text-sm text-neutral-medium dark:text-gray-300 hover:bg-neutral-light dark:hover:bg-gray-700 hover:text-neutral-dark dark:hover:text-white rounded-md transition-colors duration-150"
-                  onClick={() => setIsDropdownOpen(false)}
-                >
-                  Account Settings
-                </Link>
+                {/* Menu Items */}
+                <div className="py-1">
+                  <Link
+                    to="/account-settings"
+                    role="menuitem"
+                    tabIndex="-1"
+                    id="user-menu-item-0"
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors duration-150"
+                    onClick={() => setIsDropdownOpen(false)}
+                  >
+                    <span className="mr-2 text-xs">⚙️</span>
+                    Account Settings
+                  </Link>
 
-                <div className="px-3 py-2 flex items-center justify-between text-sm text-neutral-medium dark:text-gray-300 hover:bg-neutral-light dark:hover:bg-gray-700 hover:text-neutral-dark dark:hover:text-white rounded-md transition-colors duration-150">
-                  <span>Theme</span>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <ThemeToggle 
-                      variant="switch" 
-                      size="sm"
-                      className="ml-2"
-                    />
+                  <SubscriptionManageButton
+                    to="/subscription/manage"
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors duration-150 focus:outline-none focus:ring-0"
+                    onClick={() => setIsDropdownOpen(false)}
+                    role="menuitem"
+                    tabIndex="-1"
+                    id="user-menu-item-1"
+                  >
+                    <span className="mr-2 text-xs">🌿</span>
+                    Manage Subscription
+                  </SubscriptionManageButton>
+
+                  {/* Theme Toggle Row */}
+                  <div className="flex items-center justify-between w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors duration-150">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-xs">🎨</span>
+                      Theme
+                    </div>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <ThemeToggle 
+                        variant="switch" 
+                        size="sm"
+                        className=""
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="border-t border-neutral-light dark:border-gray-600 my-1"></div>
-
-                <LogoutButton
-                  className={`
-                    w-full text-left block px-3 py-1 text-sm font-medium rounded-md
-                    bg-plant-primary text-green-700
-                    hover:bg-plant-primary-dark
-                    focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-plant-primary-dark
-                    transition-colors duration-150
-                    border-none shadow-none
-                  `}
-                  onLoggedOut={handleLoggedOut}
-                  role="menuitem"
-                  tabIndex="-1"
-                  id="user-menu-item-2"
-                >
-                  Logout
-                </LogoutButton>
-
+                {/* Logout Section */}
+                <div className="border-t border-gray-100 dark:border-gray-700">
+                  <LogoutButton
+                    className="flex items-center w-full px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 transition-colors duration-150 border-none shadow-none rounded-none focus:outline-none focus:ring-0"
+                    onLoggedOut={handleLoggedOut}
+                    role="menuitem"
+                    tabIndex="-1"
+                    id="user-menu-item-2"
+                  >
+                    <span className="mr-2 text-xs">👋</span>
+                    Logout
+                  </LogoutButton>
+                </div>
+                  {/*Contact us section*/}
+                <div className="border-t border-gray-100 dark:border-gray-700">
+                  <Link
+                    to="/contact-us"
+                    className="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white transition-colors duration-150"
+                    onClick={() => setIsDropdownOpen(false)}
+                    role="menuitem"
+                    tabIndex="-1"
+                    id="user-menu-item-3"
+                  >
+                    <span className="mr-2 text-xs">📞</span>
+                    Contact Us
+                  </Link>
+                  </div>
               </div>
             </div>
           ) : (

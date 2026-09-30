@@ -1,5 +1,5 @@
 // src/server/utils/vectorDatabase.js
-// Fixed vector database utilities for PlantInfo model
+// CORRECTED: Fixed Prisma model references and table names
 
 import { prisma } from 'wasp/server';
 
@@ -44,12 +44,12 @@ export async function queryVectorDatabase(queryEmbedding, limit = 5, threshold =
       threshold
     });
     
-    // Get plants with embeddings using raw SQL since embedding is Unsupported type
+    // FIXED: Use correct table name from schema mapping
     const allPlants = await prisma.$queryRaw`
       SELECT 
         id, name, "scientificName", description, "careInfo", "soilNeeds", source, 
         "createdAt", "updatedAt", embedding
-      FROM "PlantInfo" 
+      FROM "plant_info" 
       WHERE embedding IS NOT NULL
     `;
 
@@ -124,6 +124,11 @@ export async function storePlantInfoWithEmbedding(plantData, embedding) {
       throw new Error('plantData.name is required and must be a string');
     }
     
+    // FIXED: Handle plantData.id properly (String type from schema)
+    if (!plantData.id || typeof plantData.id !== 'string') {
+      throw new Error('plantData.id is required and must be a string');
+    }
+    
     if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
       throw new Error('embedding must be a non-empty array');
     }
@@ -142,31 +147,33 @@ export async function storePlantInfoWithEmbedding(plantData, embedding) {
     }
     
     console.log('[VectorDB] Storing plant info:', {
+      id: plantData.id,
       name: plantData.name,
       embeddingLength: embedding.length,
       hasScientificName: !!plantData.scientificName,
       hasDescription: !!plantData.description
     });
     
-    // Handle embedding storage with raw SQL since it's Unsupported type
+    // FIXED: Use correct Prisma model name (capital P)
     const existingRecord = await prisma.plantInfo.findFirst({
       where: {
-        name: plantData.name,
-        scientificName: plantData.scientificName || null
+        id: plantData.id
       }
     });
 
     let result;
     
     if (existingRecord) {
-      // Update existing record with raw SQL for embedding
+      // Update existing record
       console.log(`[VectorDB] Updating existing record for: ${plantData.name}`);
       
-      // First update the regular fields
+      // Update regular fields first
       await prisma.plantInfo.update({
-        where: { id: existingRecord.id },
+        where: { id: plantData.id },
         data: {
-          description: plantData.description || '',
+          name: plantData.name,
+          scientificName: plantData.scientificName || null,
+          description: plantData.description || null,
           careInfo: plantData.careInfo || null,
           soilNeeds: plantData.soilNeeds || null,
           source: plantData.source || 'Unknown',
@@ -174,34 +181,35 @@ export async function storePlantInfoWithEmbedding(plantData, embedding) {
         }
       });
       
-      // Then update the embedding with raw SQL
+      // Then update the embedding with raw SQL (using correct table name)
       await prisma.$executeRaw`
-        UPDATE "PlantInfo" 
+        UPDATE "plant_info" 
         SET embedding = ${embedding}::vector
-        WHERE id = ${existingRecord.id}
+        WHERE id = ${plantData.id}
       `;
       
-      result = { id: existingRecord.id, name: plantData.name };
+      result = { id: plantData.id, name: plantData.name };
       
     } else {
-      // Create new record with raw SQL for embedding
+      // Create new record
       console.log(`[VectorDB] Creating new record for: ${plantData.name}`);
       
-      // First create without embedding
+      // Create without embedding first
       const newRecord = await prisma.plantInfo.create({
         data: {
+          id: plantData.id,
           name: plantData.name,
           scientificName: plantData.scientificName || null,
-          description: plantData.description || '',
+          description: plantData.description || null,
           careInfo: plantData.careInfo || null,
           soilNeeds: plantData.soilNeeds || null,
           source: plantData.source || 'Unknown'
         }
       });
       
-      // Then add the embedding with raw SQL
+      // Then add the embedding with raw SQL (using correct table name)
       await prisma.$executeRaw`
-        UPDATE "PlantInfo" 
+        UPDATE "plant_info" 
         SET embedding = ${embedding}::vector
         WHERE id = ${newRecord.id}
       `;
@@ -215,6 +223,7 @@ export async function storePlantInfoWithEmbedding(plantData, embedding) {
   } catch (error) {
     console.error('[VectorDB] Error storing plant info:', error);
     console.error('[VectorDB] Storage debug info:', {
+      plantId: plantData?.id,
       plantName: plantData?.name,
       hasEmbedding: !!embedding,
       embeddingLength: Array.isArray(embedding) ? embedding.length : 'N/A',
@@ -269,9 +278,9 @@ export async function getVectorDatabaseStats() {
     
     const totalCount = await prisma.plantInfo.count();
     
-    // Use raw SQL to count records with embeddings since embedding is Unsupported type
+    // FIXED: Use correct table name
     const withEmbeddingsResult = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM "PlantInfo" WHERE embedding IS NOT NULL
+      SELECT COUNT(*) as count FROM "plant_info" WHERE embedding IS NOT NULL
     `;
     const withEmbeddings = Number(withEmbeddingsResult[0].count);
     
@@ -321,15 +330,15 @@ export async function testVectorDatabase() {
     // Test 1: Basic connection and table access
     const totalCount = await prisma.plantInfo.count();
     
-    // Test 2: Check for records with embeddings using raw SQL
+    // Test 2: Check for records with embeddings using raw SQL (correct table name)
     const embeddingCountResult = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM "PlantInfo" WHERE embedding IS NOT NULL
+      SELECT COUNT(*) as count FROM "plant_info" WHERE embedding IS NOT NULL
     `;
     const embeddingCount = Number(embeddingCountResult[0].count);
     
-    // Test 3: Sample a record if any exist
+    // Test 3: Sample a record if any exist (correct table name)
     const sampleRecords = await prisma.$queryRaw`
-      SELECT id, name, embedding FROM "PlantInfo" 
+      SELECT id, name, embedding FROM "plant_info" 
       WHERE embedding IS NOT NULL 
       LIMIT 1
     `;

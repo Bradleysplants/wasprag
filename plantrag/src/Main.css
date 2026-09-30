@@ -148,3 +148,12 @@
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+
+.dark {
+  --color-plant-primary: 96, 130, 88; /* Dark green */
+  --color-plant-primary-dark: 76, 113, 69; /* Darker green */
+  --color-bg-primary: 18, 18, 18; /* Dark background */
+  --color-text-primary: 240, 240, 240; /* Light text */
+  --color-border-dark: 45, 45, 45; /* Dark borders */
+  --shadow-dark: 0 4px 6px -1px rgba(0, 0, 0, 0.6);
+}

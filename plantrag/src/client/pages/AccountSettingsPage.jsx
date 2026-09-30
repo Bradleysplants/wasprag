@@ -1,7 +1,17 @@
+// 2. UPDATED FRONTEND COMPONENT - Modified to handle HttpError exceptions
+// Replace your AccountSettingsPage with this version that handles your auth patterns
+
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCurrentUser, updateUserTheme, updateUserProfile } from 'wasp/client/operations';
+import { useAction } from 'wasp/client/operations';
+import { 
+  getCurrentUser, 
+  updateUserTheme, 
+  updateUserProfile,
+  resetPassword // Using your existing action
+} from 'wasp/client/operations';
 import { getUsername, getFirstProviderUserId } from 'wasp/auth';
+import { SubscriptionManageButton } from '../components/subscriptionManageButton.jsx';
 
 const AccountSettingsPage = () => {
   const queryClient = useQueryClient();
@@ -41,17 +51,20 @@ const AccountSettingsPage = () => {
     },
   });
 
+  // Password reset/change - Using your existing resetPassword action
+  const resetPasswordAction = useAction(resetPassword);
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
 
-  // Password Reset State (UI only)
+  // Password Reset State
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isPasswordResetLoading, setIsPasswordResetLoading] = useState(false);
-  const [passwordResetError, setPasswordResetError] = useState(null);
-  const [passwordResetSuccessMessage, setPasswordResetSuccessMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (currentUser?.user) {
@@ -67,42 +80,69 @@ const AccountSettingsPage = () => {
 
   const handleProfileUpdate = (e) => {
     e.preventDefault();
-    setProfileMessage(''); // Clear previous messages
+    setProfileMessage('');
     updateUserProfileFn({ firstName, lastName });
   };
 
-  const handlePasswordReset = (e) => {
+  // Password reset handler - Modified to handle HttpError exceptions from your backend
+  const handlePasswordReset = async (e) => {
     e.preventDefault();
-    
-    // Basic validation
-    if (newPassword !== confirmPassword) {
-      setPasswordResetError('New passwords do not match');
+    setError(null);
+    setSuccessMessage('');
+
+    // Frontend Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('Please fill in all password fields.');
       return;
     }
-    
-    if (newPassword.length < 6) {
-      setPasswordResetError('Password must be at least 6 characters long');
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setError('New password must be different from current password.');
       return;
     }
 
-    setIsPasswordResetLoading(true);
-    setPasswordResetError(null);
-    
-    // Simulate password reset (replace with actual implementation)
-    setTimeout(() => {
-      setIsPasswordResetLoading(false);
-      setPasswordResetSuccessMessage('Password change functionality not implemented yet');
-      // Clear form
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    }, 1000);
+    setIsLoading(true);
+    try {
+      // Call your resetPassword action with currentPassword
+      const result = await resetPasswordAction({ 
+        currentPassword, 
+        newPassword 
+      });
+
+      // Handle success (your action returns success object even when throwing HttpErrors)
+      if (result && result.success) {
+        setSuccessMessage(result.message);
+        // Clear form on success
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+    } catch (err) {
+      // Handle HttpError exceptions from your backend
+      console.error("Password Change Error:", err);
+      
+      // Extract error message from HttpError or use fallback
+      let errorMessage = 'An error occurred while changing your password.';
+      if (err?.message) {
+        errorMessage = err.message;
+      } else if (err?.data?.message) {
+        errorMessage = err.data.message;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // FIXED: Use currentUser.user.theme instead of currentUser.theme
   const currentTheme = currentUser?.user?.theme || 'light';
-
-  // Safely access username and firstProviderId
   const username = currentUser?.user ? getUsername(currentUser.user) : null;
   const firstProviderId = currentUser?.user ? getFirstProviderUserId(currentUser.user) : null;
 
@@ -114,15 +154,18 @@ const AccountSettingsPage = () => {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Account Settings</h1>
 
-      {/* Authentication Info Section */}
+      {/* Subscription Management Section */}
       <div className="mb-6 p-4 border rounded-lg shadow bg-white dark:bg-neutral-800 dark:border-neutral-700">
-        <h2 className="text-xl font-semibold mb-2 text-neutral-700 dark:text-neutral-200">
-          Authentication Info
+        <h2 className="text-xl font-semibold mb-3 text-neutral-700 dark:text-neutral-200">
+          Subscription Management
         </h2>
-        {username && <p className="text-neutral-600 dark:text-neutral-300">Username: {username}</p>}
-        {firstProviderId && <p className="text-neutral-600 dark:text-neutral-300">User ID: {firstProviderId}</p>}
-        {!username && !firstProviderId && <p className="text-neutral-600 dark:text-neutral-300">No authentication information available.</p>}
-        <p className="text-sm text-gray-500 dark:text-gray-400">This information is for your reference.</p>
+        <p className="text-neutral-600 dark:text-neutral-300 mb-4">
+          Manage your subscription plan, view usage, and update billing information.
+        </p>
+        <SubscriptionManageButton 
+          to="/subscription/manage"
+          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500"
+        />
       </div>
 
       {/* Theme Settings */}
@@ -216,10 +259,14 @@ const AccountSettingsPage = () => {
 
       {/* Change Password Section */}
       <div className="mb-6 p-4 border rounded-lg shadow bg-white dark:bg-neutral-800 dark:border-neutral-700">
-        <h2 className="text-xl font-semibold mb-3 text-neutral-700 dark:text-neutral-200">Change Password</h2>
+        <h2 className="text-xl font-semibold mb-3 text-neutral-700 dark:text-neutral-200">
+          <span className="mr-2">🔑</span>
+          Change Password
+        </h2>
+        
         <form onSubmit={handlePasswordReset} className="space-y-4">
           <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Current Password
             </label>
             <input
@@ -227,12 +274,15 @@ const AccountSettingsPage = () => {
               id="currentPassword"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              disabled={isLoading}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm shadow-sm disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-800 transition-colors duration-200"
+              placeholder="Enter current password"
               required
             />
           </div>
+
           <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               New Password
             </label>
             <input
@@ -240,12 +290,15 @@ const AccountSettingsPage = () => {
               id="newPassword"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              disabled={isLoading}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm shadow-sm disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-800 transition-colors duration-200"
+              placeholder="Enter new password (min. 8 characters)"
               required
             />
           </div>
+
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Confirm New Password
             </label>
             <input
@@ -253,27 +306,44 @@ const AccountSettingsPage = () => {
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              disabled={isLoading}
+              className="w-full px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm shadow-sm disabled:opacity-60 disabled:bg-gray-100 dark:disabled:bg-gray-800 transition-colors duration-200"
+              placeholder="Re-enter new password"
               required
             />
           </div>
-          <button
-            type="submit"
-            disabled={isPasswordResetLoading}
-            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 disabled:bg-gray-300 dark:disabled:bg-neutral-600"
-          >
-            {isPasswordResetLoading ? (
-              <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" role="status"></div>
-            ) : (
-              'Change Password'
-            )}
-          </button>
-          {passwordResetError && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{passwordResetError}</p>
+
+          {error && (
+            <div className="p-3 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg" role="alert">
+              {error}
+            </div>
           )}
-          {passwordResetSuccessMessage && (
-            <p className="mt-2 text-sm text-green-600 dark:text-green-400">{passwordResetSuccessMessage}</p>
+
+          {successMessage && (
+            <div className="p-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-center" role="alert">
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-green-600 dark:text-green-400">✅</span>
+                <span>{successMessage}</span>
+              </div>
+            </div>
           )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-sm"
+            >
+              {isLoading ? (
+                <div className="h-5 w-5 border-2 border-current border-t-transparent rounded-full animate-spin" role="status"></div>
+              ) : (
+                <>
+                  <span className="mr-2">🛡️</span>
+                  Change Password
+                </>
+              )}
+            </button>
+          </div>
         </form>
       </div>
     </div>

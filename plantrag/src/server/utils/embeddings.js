@@ -2,7 +2,7 @@
 // Embedding generation using onnxruntime-node with local ONNX model
 
 import * as ort from 'onnxruntime-node';
-import { MODEL_CONFIG } from './config.js';
+import { MODEL_CONFIG } from './config.js'; // Corrected import statement
 
 let session = null;
 

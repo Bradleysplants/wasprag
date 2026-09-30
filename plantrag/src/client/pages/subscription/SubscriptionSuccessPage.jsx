@@ -70,22 +70,22 @@ export const SubscriptionSuccessPage = () => {
   // Loading state while processing PayPal return
   if (status === 'processing' || status === 'activating') {
     return (
-      <div className="min-h-screen bg-background-primary flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-background-secondary border border-border-primary rounded-xl p-8 text-center shadow-lifted">
+      <div className="h-fit bg-background-primary flex items-center justify-center px-4 pt-20 pb-8">
+        <div className="max-w-sm w-full bg-background-secondary border border-border-primary rounded-xl p-6 text-center shadow-lifted">
           
           {/* Loading Animation */}
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-plant-primary mx-auto mb-6"></div>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-plant-primary mx-auto mb-4"></div>
           
           {/* Loading Message */}
-          <h1 className="text-xl font-bold text-text-primary mb-4">
+          <h1 className="text-lg font-bold text-text-primary mb-3">
             {status === 'processing' ? 'Processing Payment...' : 'Activating Subscription...'}
           </h1>
           
-          <p className="text-text-secondary mb-6">
+          <p className="text-sm text-text-secondary mb-4">
             Please wait while we confirm your subscription with PayPal.
           </p>
 
-          <div className="text-sm text-text-tertiary">
+          <div className="text-xs text-text-tertiary">
             This usually takes just a few seconds.
           </div>
         </div>
@@ -96,39 +96,39 @@ export const SubscriptionSuccessPage = () => {
   // Error state
   if (status === 'error') {
     return (
-      <div className="min-h-screen bg-background-primary flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-background-secondary border border-border-primary rounded-xl p-8 text-center shadow-lifted">
+      <div className="h-fit bg-background-primary flex items-center justify-center px-4 pt-20 pb-8">
+        <div className="max-w-sm w-full bg-background-secondary border border-border-primary rounded-xl p-6 text-center shadow-lifted">
           
           {/* Error Icon */}
-          <div className="text-6xl mb-6">❌</div>
+          <div className="text-4xl mb-4">❌</div>
           
           {/* Error Message */}
-          <h1 className="text-2xl font-bold text-text-primary mb-4">
+          <h1 className="text-lg font-bold text-text-primary mb-3">
             Activation Failed
           </h1>
           
-          <p className="text-red-600 mb-6 text-sm">
+          <p className="text-red-600 mb-4 text-sm">
             {error}
           </p>
 
           {/* Action Buttons */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <Link
-              to="/pricing"
-              className="block w-full bg-plant-primary hover:bg-plant-primary-dark text-text-inverse font-medium py-3 px-4 rounded-lg transition-colors"
+              to="/pricing-page"
+              className="block w-full bg-plant-primary hover:bg-plant-primary-dark text-text-inverse font-medium py-2.5 px-4 rounded-lg transition-colors"
             >
               Try Again
             </Link>
             
             <Link
               to="/"
-              className="block w-full bg-background-tertiary hover:bg-background-tertiary/80 text-text-primary font-medium py-3 px-4 rounded-lg transition-colors border border-border-primary"
+              className="block w-full bg-background-tertiary hover:bg-background-tertiary/80 text-text-primary font-medium py-2.5 px-4 rounded-lg transition-colors border border-border-primary"
             >
               Go to Dashboard
             </Link>
           </div>
 
-          <p className="text-xs text-text-tertiary mt-6">
+          <p className="text-xs text-text-tertiary mt-4">
             If you continue to have issues, please contact support.
           </p>
         </div>
@@ -138,18 +138,18 @@ export const SubscriptionSuccessPage = () => {
 
   // Success state (your original design with enhancements)
   return (
-    <div className="min-h-screen bg-background-primary flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-background-secondary border border-border-primary rounded-xl p-8 text-center shadow-lifted">
+    <div className="h-fit bg-background-primary flex items-center justify-center px-4 pt-8 pb-8">
+      <div className="max-w-sm w-full bg-background-secondary border border-border-primary rounded-xl p-6 text-center shadow-lifted">
         
         {/* Success Icon */}
-        <div className="text-6xl mb-6">🎉</div>
+        <div className="text-4xl mb-3">🎉</div>
         
         {/* Success Message */}
-        <h1 className="text-2xl font-bold text-text-primary mb-4">
+        <h1 className="text-lg font-bold text-text-primary mb-3">
           Welcome to Your Plant Journey!
         </h1>
         
-        <p className="text-text-secondary mb-6">
+        <p className="text-sm text-text-secondary mb-3">
           Your subscription has been activated successfully. You now have access to all the features of your 
           <span className="font-semibold text-plant-primary">
             {' '}{subscription?.planDetails?.name || activationResult?.planDetails?.name || 'new plan'}
@@ -158,12 +158,12 @@ export const SubscriptionSuccessPage = () => {
 
         {/* Plan Details */}
         {(subscription?.planDetails || activationResult?.planDetails) && (
-          <div className="bg-plant-primary/10 border border-plant-primary/20 rounded-lg p-4 mb-6">
-            <h3 className="font-semibold text-text-primary mb-2">Your Plan Benefits:</h3>
-            <ul className="text-sm text-text-secondary space-y-1">
+          <div className="bg-plant-primary/10 border border-plant-primary/20 rounded-lg p-3 mb-3">
+            <h3 className="font-semibold text-sm text-text-primary mb-2">Your Plan Benefits:</h3>
+            <ul className="text-xs text-text-secondary space-y-1">
               {(subscription?.planDetails?.features || activationResult?.planDetails?.features || []).map((feature, index) => (
-                <li key={index} className="flex items-center">
-                  <span className="text-plant-primary mr-2">✓</span>
+                <li key={index} className="flex items-center text-left">
+                  <span className="text-plant-primary mr-2 flex-shrink-0">✓</span>
                   {feature}
                 </li>
               ))}
@@ -173,32 +173,32 @@ export const SubscriptionSuccessPage = () => {
 
         {/* Success notification for new activation */}
         {activationResult && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-6">
-            <p className="text-sm text-green-800">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-3">
+            <p className="text-xs text-green-800">
               🎊 Subscription activated! Welcome to the {activationResult.planDetails?.name} plan.
             </p>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Link
             to="/"
-            className="block w-full bg-plant-primary hover:bg-plant-primary-dark text-text-inverse font-medium py-3 px-4 rounded-lg transition-colors"
+            className="block w-full bg-background-tertiary hover:bg-background-tertiary/80 text-text-primary font-medium py-2.5 px-4 rounded-lg transition-colors border border-border-primary"
           >
             🌱 Start Asking Questions
           </Link>
           
           <Link
             to="/subscription/manage"
-            className="block w-full bg-background-tertiary hover:bg-background-tertiary/80 text-text-primary font-medium py-3 px-4 rounded-lg transition-colors border border-border-primary"
+            className="block w-full bg-background-tertiary hover:bg-background-tertiary/80 text-text-primary font-medium py-2.5 px-4 rounded-lg transition-colors border border-border-primary"
           >
             Manage Subscription
           </Link>
         </div>
 
         {/* Footer */}
-        <p className="text-xs text-text-tertiary mt-6">
+        <p className="text-xs text-text-tertiary mt-3">
           Need help? Contact our support team anytime.
         </p>
       </div>

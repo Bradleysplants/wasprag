@@ -1,9 +1,18 @@
-// src/client/components/MessageList.jsx
+// src/client/components/messageList.jsx
+// Back to working version with just padding adjustment
+
 import React, { useEffect, useRef } from 'react';
 import { MessageItem } from './messageItem.jsx';
 import { LoadingIndicator } from './loadingIndicator.jsx';
+import { EmptyChatGreeting } from './emptyChatGreeting.jsx';
 
-export const MessageList = ({ messages, isLoading, userInitial, theme = 'light' }) => {
+export const MessageList = ({ 
+  messages, 
+  isLoading, 
+  userInitial, 
+  theme = 'light',
+  isPaywallShowing = false
+}) => {
   const messagesEndRef = useRef(null);
   const isDark = theme === 'dark';
 
@@ -12,88 +21,60 @@ export const MessageList = ({ messages, isLoading, userInitial, theme = 'light' 
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll to bottom if there are messages, not for the empty state
+    if (!isChatEmpty) { 
+      scrollToBottom();
+    }
   }, [messages, isLoading]);
 
   // Determine if only the initial bot message is present
-  const isChatEmpty = messages.length <= 1;
+  const isChatEmpty = messages.length <= 1; // Assuming initial greeting is messages[0]
 
   return (
-    <div
-      className={`relative flex-1 overflow-y-auto p-4 sm:p-6 ${isDark ? 'bg-gray-900' : 'bg-gray-300'}`}
+    <div 
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+      className={`overflow-hidden ${isDark ? 'bg-gray-900' : 'bg-gray-300'}`}
       role="log"
       aria-live="polite"
     >
-      {/* Subtle plant pattern background */}
-      <div className="absolute inset-0 opacity-5 dark:opacity-3 pointer-events-none">
-        <div className="absolute top-20 left-10 text-6xl text-green-300 transform rotate-12">🍃</div>
-        <div className="absolute top-40 right-16 text-4xl text-emerald-300 transform -rotate-12">🌿</div>
-        <div className="absolute bottom-32 left-20 text-5xl text-green-400/50 transform rotate-45">🌱</div>
-        <div className="absolute bottom-60 right-8 text-3xl text-yellow-400/50 transform -rotate-45">🌻</div>
-      </div>
+      {/* Back to flex layout */}
+      <div style={{ flex: 1, height: '100%', paddingLeft: '8px', paddingRight: '8px', paddingTop: '10px', paddingBottom: '6px', alignContent: 'center', overflow: 'hidden' }}>
+        {/* Main content area - much smaller */}
+        <div style={{
+          height: '350px', // Fixed height instead of percentage
+          borderRadius: '12px',
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          ...(isChatEmpty && !isLoading ? { alignItems: 'center', justifyContent: 'center' } : {})
+        }} className={`${isDark ? 'bg-gray-800' : 'bg-white'}`}>
+          {/* Conditional Rendering: Show EmptyChatGreeting or messages */}
+          {isChatEmpty && !isLoading ? (
+            // Render the full EmptyChatGreeting component with paywall prop
+            <EmptyChatGreeting theme={theme} isPaywallShowing={isPaywallShowing} />
+          ) : (
+            // Render Messages in a scrollable container
+            <div className="flex-1 overflow-y-auto">
+              <div className={`max-w-2xl mx-auto rounded-xl shadow-lg ${isDark ? 'bg-gray-700 shadow-black/25' : 'bg-gray-50 shadow-gray-400/25'} my-14 p-8 space-y-1.5  mb-10 w-full`}>
+                {messages.map((message) => (
+                  <MessageItem
+                    key={message.id}
+                    message={message}
+                    userInitial={userInitial}
+                    theme={theme}
+                  />
+                ))}
+                {/* Loading indicator with theme */}
+                {isLoading && <LoadingIndicator theme={theme} />}
 
-      {/* Inner container with contrasting chatbox background */}
-      <div className="max-w-4xl mx-auto relative z-10">
-        <div className={`min-h-96 rounded-xl border space-y-4 p-6 relative ${isDark ? 'bg-gray-800 border-gray-600 shadow-lg' : 'bg-white border-gray-300 shadow-xl'}`}>
-
-        {/* Conditional Rendering: Show prompt or messages */}
-        {isChatEmpty && !isLoading ? (
-          // Empty State / Initial Prompt with plant theme
-          <div className={`absolute inset-0 flex flex-col items-center justify-center text-center px-4 rounded-xl ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-            <div className="relative">
-              {/* Decorative plant elements around the main emoji */}
-              <div className="absolute -top-2 -left-2 text-lg text-plant-secondary animate-pulse" style={{ animationDelay: '1s' }}>🌿</div>
-              <div className="absolute -top-2 -right-2 text-lg text-accent-sun animate-pulse" style={{ animationDelay: '2s' }}>🌻</div>
-              <div className="absolute -bottom-2 -left-2 text-lg text-plant-subtle animate-pulse" style={{ animationDelay: '0.5s' }}>🍃</div>
-              
-              <span className="text-6xl block animate-pulse" role="img" aria-label="sprout emoji">🌱</span>
+                {/* Scroll target - keep at the very end */}
+                <div ref={messagesEndRef} />
+              </div>
             </div>
-            
-            <p className={`
-              text-xl font-medium mt-6 mb-2
-              ${isDark ? 'text-white' : 'text-plant-primary-dark'}
-            `}>
-              Ready to help you grow! 🌿
-            </p>
-            
-            <p className={`
-              text-sm max-w-md leading-relaxed
-              ${isDark ? 'text-gray-300' : 'text-text-secondary'}
-            `}>
-              Ask me anything about plants, like "How to care for a Pothos?" or "What's wrong with my fiddle leaf fig?"
-            </p>
-
-            {/* Subtle plant care tips */}
-            <div className={`
-              mt-4 p-3 rounded-lg border
-              ${isDark 
-                ? 'bg-plant-primary/5 border-plant-primary/20 text-white' 
-                : 'bg-plant-subtle/10 border-plant-subtle/30 text-plant-primary-dark'
-              }
-            `}>
-              <span className="text-xs font-medium">💡 Try asking about watering, light requirements, or plant identification!</span>
-            </div>
-          </div>
-        ) : (
-          // Render Messages and Loading Indicator
-          <>
-            {messages.map((message) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                userInitial={userInitial}
-                theme={theme}
-              />
-            ))}
-            {/* Loading indicator with theme */}
-            {isLoading && <LoadingIndicator theme={theme} />}
-          </>
-        )}
-
-        {/* Scroll target - keep at the very end */}
-        <div ref={messagesEndRef} />
+          )}
         </div>
       </div>
     </div>
   );
 };
+

@@ -30,7 +30,7 @@ app botanicalAssistant {
   ],
   client: {
     rootComponent: import Layout from "@src/client/layouts/layout.jsx",
-    setupFn: import { clientSetup } from "@src/client/clientSetup", 
+    /*setupFn: import { clientSetup } from "@src/client/clientSetup",*/ 
   },
   auth: {
     userEntity: User,
@@ -119,6 +119,7 @@ route PricingRoute {
 
 page PricingPage {
   component: import { PricingPage } from "@src/client/pages/subscription/PricingPage.jsx",
+  authRequired: true, 
   }
 
 route SubscriptionSuccessRoute { 
@@ -141,6 +142,20 @@ page SubscriptionManagePage {
   authRequired: true
 }
 
+route ContactUsRoute {
+  path: "/contact-us",
+  to: ContactUsPage
+}
+
+page ContactUsPage {
+  component: import { ContactUsPage } from "@src/client/pages/ContactUsPage.jsx",
+ }
+
+api paypalWebhookApi {
+  fn: import { handlePayPalWebhook } from "@src/server/actions/paypalActions.js",
+  entities: [User, Subscription, Payment],
+  httpRoute: (POST, "/api/webhooks/paypal")
+}
 
 // --- Queries ---
 query getPlantInfo {
@@ -175,14 +190,24 @@ query getSubscriptionPlans {
   auth: true
 }
 
-// --- Actions ---
-action createPlans {
-  fn: import { createSandboxPlans } from "@src/server/actions/paypalActions.js",
+// Get user messages operation  
+query getUserMessages {
+  fn: import { getUserMessages } from "@src/server/queries/messageQueries.js",
+  entities: [Message],
+  auth: true
 }
 
+query getUserMessagesForDisplay {
+  fn: import { getUserMessagesForDisplay } from "@src/server/operations.js",
+  entities: [Message, User],
+  auth: true
+}
+
+
+// --- Actions ---
 action resetQuestionCount {
   fn: import { resetQuestionCount } from "@src/server/actions/subscriptionActions.js",
-  entities: [Subscription],
+  entities: [User, Subscription],
   auth: true
 }
 
@@ -211,27 +236,31 @@ action requestPasswordReset {
 
 action fetchFromTrefleApi {
   fn: import { fetchFromTrefleApi } from "@src/server/actions/plantActions.js",
-  entities: [User]
+  entities: [User],
+  auth: true
 }
 
 action storePlantData {
   fn: import { storePlantData } from "@src/server/actions/plantActions.js",
-  entities: [User, PlantInfo]
+  entities: [User, PlantInfo],
+  auth: true
 }
 
 action generateEmbedding {
   fn: import { generateEmbedding } from "@src/server/actions/aiActions.js",
-  entities: [User]
+  entities: [User],
+  auth: true
 }
 
 action searchBotanicalInfo {
   fn: import { searchBotanicalInfo } from "@src/server/actions/aiActions.js",
-  entities: [User]
+  entities: [User],
+  auth: true
 }
 
 action resetPassword {
   fn: import { resetPassword } from "@src/server/actions/authActions.js",
-  entities: [User]
+  entities: [User],
 }
 
 action updateUserTheme {
@@ -278,14 +307,50 @@ action createFreeSubscription {
 
 action testPayPalConfiguration {
   fn: import { testPayPalConfiguration } from "@src/server/actions/paypalActions.js",
-}
-
-action enhancedChat {
-  fn: import { enhancedChat } from "@src/server/actions/aiActions.js"
+  auth: true,
 }
 
 action healthCheck {
-  fn: import { healthCheck } from "@src/server/actions/aiActions.js"
+  fn: import { healthCheck } from "@src/server/actions/aiActions.js",
+  auth: true,
+}
+
+api handlePayPalWebhook {
+  fn: import { handlePayPalWebhook } from "@src/server/actions/paypalActions.js",
+  httpRoute: (POST, "/paypal-webhook"),
+  entities: [User, Subscription, Payment],
+  auth: false
+}
+
+action saveMessage {
+  fn: import { saveMessage } from "@src/server/actions/messageActions.js",
+  entities: [Message],
+  auth: true
+}
+
+// Delete old messages operation (your existing one)
+action deleteOldMessages {
+  fn: import { deleteOldMessages } from "@src/server/actions/messageActions.js", 
+  entities: [Message],
+  auth: true
+}
+
+// NEW: Action to delete ALL messages for the current user, used by the cleanup button
+action deleteAllUserMessages {
+  fn: import { deleteAllUserMessages } from "@src/server/operations.js",
+  entities: [Message, User],
+  auth: true
+}
+
+action processUserChat {
+  fn: import { processUserChat } from "@src/server/operations.js",
+  entities: [Message, User, Subscription],
+  auth: true
+}
+
+action sendContactFormEmail {
+  fn: import { sendContactFormEmail } from "@src/server/actions/emailActions",
+  entities: [] // No entities needed for this action
 }
 
 // --- Jobs ---
@@ -298,4 +363,14 @@ job syncUserToStrapi {
     cron: "0 * * * *" // Every hour
   },
   entities: [User] // Correct: Job likely interacts with User
+}
+
+job messageCleanupJob {
+  executor: PgBoss,
+  perform: {
+    fn: import { messageCleanup } from "@src/server/jobs/messageCleanup.js"
+  },
+  schedule: {
+    cron: "0 2 * * 0" // Every Sunday at 2 AM
+  }
 }

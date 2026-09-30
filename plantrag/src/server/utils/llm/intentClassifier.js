@@ -74,12 +74,14 @@ export class EnhancedIntentClassifier {
      * Main classification method - integrates with your NER entities
      */
     classifyIntent(text, entities = []) {
+        // Ensure entities is always an array
+        const safeEntities = Array.isArray(entities) ? entities : [];
         const normalizedText = text.toLowerCase().trim();
         const words = normalizedText.split(/\s+/);
-        const hasPlantEntities = entities && entities.length > 0;
+        const hasPlantEntities = safeEntities && safeEntities.length > 0;
         
         console.log(`[Intent Classifier] Analyzing: "${text}"`);
-        console.log(`[Intent Classifier] Found ${entities.length} entities: ${entities.map(e => e.text || e).join(', ')}`);
+        console.log(`[Intent Classifier] Found ${safeEntities.length} entities: ${safeEntities.map(e => e.text || e).join(', ')}`);
         
         // Check for questions
         const isQuestion = this.isQuestion(normalizedText, words);

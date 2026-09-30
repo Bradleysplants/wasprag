@@ -1,5 +1,5 @@
 // src/server/actions/subscriptionActions.js
-// CONSOLIDATED subscription management with proper client data structure
+// FIXED: Added atomic operations and proper race condition handling
 
 import { HttpError } from 'wasp/server';
 
@@ -35,6 +35,19 @@ const SUBSCRIPTION_PLANS = {
  * Gets user subscription with ALL needed properties for client components
  */
 export const getUserSubscription = async (args, context) => {
+  console.log('🔍 [DEBUG] getUserSubscription called');
+  console.log('🔍 [DEBUG] Context keys:', Object.keys(context || {}));
+  console.log('🔍 [DEBUG] Context.entities available:', !!context?.entities);
+  console.log('🔍 [DEBUG] Context.user available:', !!context?.user);
+  
+  if (context?.entities) {
+    console.log('🔍 [DEBUG] Entities keys:', Object.keys(context.entities));
+    console.log('🔍 [DEBUG] Subscription entity available:', !!context.entities.Subscription);
+  } else {
+    console.error('❌ [DEBUG] context.entities is undefined!');
+    console.error('❌ [DEBUG] This means the operation in main.wasp is missing: entities: [User, Subscription]');
+  }
+
   if (!context.user) {
     throw new HttpError(401, 'User must be authenticated');
   }
@@ -43,6 +56,18 @@ export const getUserSubscription = async (args, context) => {
   console.log(`📋 Getting subscription for user ${userId}`);
 
   try {
+    // SAFETY CHECK: Verify entities are available
+    if (!context.entities || !context.entities.Subscription) {
+      console.error('❌ [CRITICAL] Subscription entity not available in context');
+      console.error('❌ [CRITICAL] Available context:', {
+        hasEntities: !!context.entities,
+        entityKeys: context.entities ? Object.keys(context.entities) : 'NONE',
+        hasUser: !!context.user,
+        userId: context.user?.id
+      });
+      throw new HttpError(500, 'Database configuration error: Subscription entity not available. Check main.wasp operations have entities: [User, Subscription]');
+    }
+
     // Get or create subscription
     let subscription = await context.entities.Subscription.findUnique({
       where: { userId: userId }
@@ -79,6 +104,11 @@ export const getUserSubscription = async (args, context) => {
     }
 
     const planDetails = SUBSCRIPTION_PLANS[subscription.plan];
+    if (!planDetails) {
+      console.error(`❌ Unknown plan: ${subscription.plan}`);
+      throw new HttpError(500, `Unknown subscription plan: ${subscription.plan}`);
+    }
+
     const questionsRemaining = planDetails.monthlyQuestions === -1 
       ? -1 // unlimited
       : Math.max(0, planDetails.monthlyQuestions - subscription.monthlyQuestions);
@@ -88,6 +118,7 @@ export const getUserSubscription = async (args, context) => {
     console.log(`✅ Subscription data for user ${userId}:`, {
       plan: subscription.plan,
       monthlyQuestions: subscription.monthlyQuestions,
+      maxQuestions: planDetails.monthlyQuestions,
       questionsRemaining,
       canAskQuestion
     });
@@ -105,51 +136,147 @@ export const getUserSubscription = async (args, context) => {
 
   } catch (error) {
     console.error(`❌ Error getting subscription for user ${userId}:`, error.message);
+    console.error(`❌ Full error stack:`, error.stack);
     throw new HttpError(500, `Failed to get subscription: ${error.message}`);
   }
 };
 
 /**
- * Increments question count and enforces limits
+ * ATOMIC INCREMENT: Increments question count and enforces limits in a single atomic operation
+ * This prevents race conditions by using database-level atomic updates
  */
 export const incrementQuestionCount = async (args, context) => {
+  console.log('🔍 [DEBUG] incrementQuestionCount called');
+  console.log('🔍 [DEBUG] Context available:', !!context);
+  console.log('🔍 [DEBUG] Context.entities available:', !!context?.entities);
+  console.log('🔍 [DEBUG] User ID:', context?.user?.id);
+  
   if (!context.user) {
     throw new HttpError(401, 'User must be authenticated');
   }
 
   const userId = context.user.id;
-  console.log(`📈 Incrementing question count for user ${userId}`);
+  console.log(`📈 ATOMIC increment for user ${userId}`);
 
   try {
-    // Get current subscription
-    const currentSub = await getUserSubscription(args, context);
-    
-    // Check if user can ask questions
-    if (!currentSub.canAskQuestion) {
-      console.log(`❌ User ${userId} cannot ask questions - limit reached`);
-      throw new HttpError(400, `Question limit reached. You have used all ${currentSub.planDetails.monthlyQuestions} questions for this month. Upgrade your plan to continue!`);
+    // SAFETY CHECK: Verify entities are available
+    if (!context.entities || !context.entities.Subscription) {
+      console.error('❌ [CRITICAL] incrementQuestionCount: Subscription entity not available');
+      throw new HttpError(500, 'Database configuration error: entities not available in incrementQuestionCount');
     }
 
-    // Increment the count
-    const subscription = await context.entities.Subscription.update({
-      where: { userId: userId },
-      data: {
-        monthlyQuestions: currentSub.monthlyQuestions + 1
-      }
+    // STEP 1: Get current subscription to check plan limits
+    let subscription = await context.entities.Subscription.findUnique({
+      where: { userId: userId }
     });
 
+    if (!subscription) {
+      console.log(`⚠️ No subscription found for user ${userId}, creating free subscription`);
+      subscription = await context.entities.Subscription.create({
+        data: {
+          userId: userId,
+          plan: 'FREE',
+          status: 'ACTIVE',
+          currentPeriodStart: new Date(),
+          monthlyQuestions: 0,
+          questionsResetAt: new Date()
+        }
+      });
+    }
+
+    // STEP 2: Check if monthly reset is needed
+    const now = new Date();
+    const resetDate = new Date(subscription.questionsResetAt);
+    const daysSinceReset = (now.getTime() - resetDate.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if (daysSinceReset >= 30) {
+      console.log(`🔄 Resetting monthly question count for user ${userId}`);
+      subscription = await context.entities.Subscription.update({
+        where: { id: subscription.id },
+        data: {
+          monthlyQuestions: 0,
+          questionsResetAt: now
+        }
+      });
+    }
+
+    // STEP 3: Get plan details and check current limits
     const planDetails = SUBSCRIPTION_PLANS[subscription.plan];
-    const questionsRemaining = planDetails.monthlyQuestions === -1 
+    if (!planDetails) {
+      console.error(`❌ Unknown plan: ${subscription.plan}`);
+      throw new HttpError(500, `Unknown subscription plan: ${subscription.plan}`);
+    }
+
+    // STEP 4: ATOMIC INCREMENT WITH LIMIT CHECK
+    // This is the critical part - we do the increment AND limit check in one atomic operation
+    const isUnlimited = planDetails.monthlyQuestions === -1;
+    
+    if (!isUnlimited) {
+      // For limited plans, use atomic increment with a condition
+      const currentCount = subscription.monthlyQuestions;
+      const maxQuestions = planDetails.monthlyQuestions;
+      
+      console.log(`🔒 ATOMIC CHECK: User ${userId} current: ${currentCount}, max: ${maxQuestions}`);
+      
+      if (currentCount >= maxQuestions) {
+        console.log(`❌ User ${userId} already at limit: ${currentCount}/${maxQuestions}`);
+        throw new HttpError(400, `Question limit reached. You have used all ${maxQuestions} questions for this month. Upgrade your plan to continue!`);
+      }
+
+      // ATOMIC INCREMENT: Only increment if still under limit
+      // This uses Prisma's atomic operations to prevent race conditions
+      try {
+        subscription = await context.entities.Subscription.update({
+          where: { 
+            id: subscription.id,
+            monthlyQuestions: { lt: maxQuestions } // Only update if still under limit
+          },
+          data: {
+            monthlyQuestions: { increment: 1 } // Atomic increment
+          }
+        });
+        
+        console.log(`🔒 ATOMIC SUCCESS: User ${userId} incremented to ${subscription.monthlyQuestions}`);
+        
+      } catch (updateError) {
+        // If the update failed, it means the condition wasn't met (already at limit)
+        console.log(`❌ ATOMIC FAILED: User ${userId} hit limit during increment attempt`);
+        
+        // Get the current state to provide accurate error message
+        const currentSub = await context.entities.Subscription.findUnique({
+          where: { userId: userId }
+        });
+        
+        const currentQuestions = currentSub?.monthlyQuestions || 0;
+        
+        throw new HttpError(400, `Question limit reached. You have used all ${maxQuestions} questions for this month (current: ${currentQuestions}). Upgrade your plan to continue!`);
+      }
+    } else {
+      // For unlimited plans, just increment normally
+      subscription = await context.entities.Subscription.update({
+        where: { id: subscription.id },
+        data: {
+          monthlyQuestions: { increment: 1 }
+        }
+      });
+      
+      console.log(`✅ UNLIMITED: User ${userId} incremented to ${subscription.monthlyQuestions}`);
+    }
+
+    // STEP 5: Calculate remaining questions
+    const questionsRemaining = isUnlimited 
       ? -1 
       : Math.max(0, planDetails.monthlyQuestions - subscription.monthlyQuestions);
     
-    const canAskQuestion = planDetails.monthlyQuestions === -1 || questionsRemaining > 0;
+    const canAskQuestion = isUnlimited || questionsRemaining > 0;
 
-    console.log(`✅ Question count incremented for user ${userId}:`, {
+    console.log(`✅ ATOMIC RESULT for user ${userId}:`, {
       plan: subscription.plan,
       monthlyQuestions: subscription.monthlyQuestions,
+      maxQuestions: planDetails.monthlyQuestions,
       questionsRemaining,
-      canAskQuestion
+      canAskQuestion,
+      isUnlimited
     });
 
     return {
@@ -158,11 +285,13 @@ export const incrementQuestionCount = async (args, context) => {
       questionsRemaining: questionsRemaining,
       canAskQuestion: canAskQuestion,
       planDetails: planDetails,
-      withinLimit: true // since we already checked above
+      withinLimit: true,
+      isUnlimited: isUnlimited
     };
 
   } catch (error) {
-    console.error(`❌ Error incrementing question count for user ${userId}:`, error.message);
+    console.error(`❌ Error in atomic increment for user ${userId}:`, error.message);
+    console.error(`❌ Full error stack:`, error.stack);
     if (error instanceof HttpError) {
       throw error;
     }
@@ -182,6 +311,12 @@ export const createFreeSubscription = async (args, context) => {
   console.log(`🆓 Creating free subscription for user ${userId}`);
 
   try {
+    // SAFETY CHECK: Verify entities are available
+    if (!context.entities || !context.entities.Subscription) {
+      console.error('❌ [CRITICAL] createFreeSubscription: Subscription entity not available');
+      throw new HttpError(500, 'Database configuration error: entities not available in createFreeSubscription');
+    }
+
     // Check if user already has a subscription
     const existingSubscription = await context.entities.Subscription.findUnique({
       where: { userId: userId }
@@ -305,6 +440,12 @@ export const resetQuestionCount = async (args, context) => {
   console.log(`🔄 Resetting question count for user ${targetUserId}`);
 
   try {
+    // SAFETY CHECK: Verify entities are available
+    if (!context.entities || !context.entities.Subscription) {
+      console.error('❌ [CRITICAL] resetQuestionCount: Subscription entity not available');
+      throw new HttpError(500, 'Database configuration error: entities not available in resetQuestionCount');
+    }
+
     const subscription = await context.entities.Subscription.findUnique({
       where: { userId: targetUserId }
     });

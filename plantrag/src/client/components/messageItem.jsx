@@ -33,61 +33,38 @@ export const MessageItem = ({ message, userInitial, theme = 'light' }) => {
   };
 
   return (
-    <div className={`flex items-start ${isUser ? 'justify-end' : 'justify-start'} animate-fade-slide-in`}>
+    <div className={`flex items-start ${isUser ? 'justify-end' : 'justify-start'}`}>
       
-      {/* Assistant Avatar */}
-      {!isUser && (
-        <div 
-          className={`
-            w-8 h-8 rounded-full flex-shrink-0 mr-3 flex items-center justify-center
-            text-sm font-bold shadow-sm
-            ${isError 
-              ? 'bg-red-500 text-white' 
-              : 'bg-emerald-600 text-white'
-            }
-          `}
-          aria-label={isError ? "Error message avatar" : "Botanical Assistant avatar"}
-        >
-          {isError ? '⚠️' : '🌱'}
-        </div>
-      )}
-
-      {/* Message Bubble */}
+      {/* Message Bubble - rounded corners */}
       <div className={`
-        relative group max-w-md md:max-w-lg rounded-lg px-4 py-3 shadow-sm break-words 
-        transition-all duration-200 hover:shadow-md
+        relative group max-w-xs md:max-w-sm rounded-xl px-3 py-2 shadow-sm break-words text-sm
         ${isUser 
-          ? 'bg-green-600 text-white rounded-br-none' 
+          ? 'bg-green-600 text-white' 
           : isError 
-            ? 'bg-red-50 border border-red-200 text-red-800 rounded-bl-none dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
-            : 'bg-gray-50 border border-gray-200 text-gray-900 rounded-bl-none dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100'
+            ? 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
+            : 'bg-gray-50 border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100'
         }
       `}>
 
-        {/* Copy Button (for Assistant messages only) */}
+        {/* Copy Button (for Assistant messages only) - rounded */}
         {!isUser && !isError && message.content && (
           <button
             onClick={handleCopy}
             className={`
-              absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 
-              focus:opacity-100 transition-opacity duration-150
-              ${isDark 
-                ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50' 
-                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100/50'
-              }
+              absolute top-1 right-1 p-1 rounded-lg text-xs opacity-0 group-hover:opacity-100 
+              ${isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-400 hover:text-gray-600'}
               ${isCopied ? 'text-green-600' : ''}
             `}
-            aria-label={isCopied ? "Copied!" : "Copy message"}
-            title={isCopied ? "Copied!" : "Copy message"}
+            title={isCopied ? "Copied!" : "Copy"}
           >
             {isCopied ? '✓' : '📋'}
           </button>
         )}
 
-        {/* Message Content */}
+        {/* Message Content - with space for copy button */}
         <div className={`
-          text-sm whitespace-pre-wrap
-          ${!isUser && !isError ? 'pr-6' : ''}
+          whitespace-pre-wrap leading-tight
+          ${!isUser && !isError ? 'pr-8' : ''}
           ${isUser 
             ? 'text-white' 
             : isError 
@@ -98,10 +75,10 @@ export const MessageItem = ({ message, userInitial, theme = 'light' }) => {
           {message.content}
         </div>
 
-        {/* Sources Section */}
+        {/* Sources Section - compact */}
         {message.sources && message.sources.length > 0 && (
           <div className={`
-            mt-2 pt-2 text-xs border-t
+            mt-1 pt-1 text-xs border-t
             ${isError 
               ? 'border-red-200 dark:border-red-800' 
               : isUser 
@@ -119,12 +96,12 @@ export const MessageItem = ({ message, userInitial, theme = 'light' }) => {
                     : 'text-green-700 group-hover/details:text-green-800 dark:text-green-400 dark:group-hover/details:text-green-300'
                 }
               `}>
-                <span className="inline-block transition-transform duration-200 group-open/details:rotate-90 mr-1.5">▶</span>
+                <span className="inline-block transition-transform duration-200 group-open/details:rotate-90 mr-1">▶</span>
                 Sources
               </summary>
               
               <ul className={`
-                mt-1.5 pl-5 list-disc space-y-1
+                mt-0.5 pl-3 list-disc space-y-0
                 ${isUser 
                   ? 'text-green-100/90' 
                   : isError 
@@ -153,13 +130,6 @@ export const MessageItem = ({ message, userInitial, theme = 'light' }) => {
           </div>
         )}
       </div>
-
-      {/* User Avatar */}
-      {isUser && (
-        <div className="w-8 h-8 rounded-full bg-amber-700 flex-shrink-0 ml-3 flex items-center justify-center text-white font-bold text-sm shadow-sm" aria-label={`User ${userInitial} avatar`}>
-          {userInitial}
-        </div>
-      )}
     </div>
   );
 };
