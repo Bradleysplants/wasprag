@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment files (real values never committed; keep *.example)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Build output / generated
+dist/
+build/
+.wasp/
+.cache/
+.tmp/
+.strapi/
+*.tsbuildinfo
+
+# Model weights
+models/
+*.gguf
+*.onnx
+
+# Logs and OS files
+*.log
+logs/
+.DS_Store
